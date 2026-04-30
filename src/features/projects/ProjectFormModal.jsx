@@ -1,376 +1,395 @@
-import React, { useState, useEffect } from 'react'
-import { useAuth } from '../../context/AuthContext'
-import { toast } from 'react-toastify';
-import { createProject, updateProject } from '../../services/project.service';
-import Modal from '../../components/ui/Modal';
-import Input from '../../components/ui/Input';
-import Button from '../../components/ui/Button';
-// import useManagers from '../../hooks/useManagers';
+import React, { useState, useEffect, useMemo } from "react";
+import Select from "react-select";
+import { toast } from "react-toastify";
 
-import Select from "react-select"
-import useEmployees from '../../hooks/useEmployee';
+import { useAuth } from "../../context/AuthContext";
+import { createProject, updateProject } from "../../services/project.service";
+import useEmployees from "../../hooks/useEmployee";
+
+import Modal from "../../components/ui/Modal";
+import Input from "../../components/ui/Input";
+import Button from "../../components/ui/Button";
+
+const reactSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: "36px",
+    borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(228 228 231)",
+    boxShadow: state.isFocused
+      ? "0 0 0 3px rgba(59, 130, 246, 0.25)"
+      : "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    "&:hover": {
+      borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(212 212 216)",
+    },
+  }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: "14px",
+    backgroundColor: state.isSelected
+      ? "rgb(239 246 255)"
+      : state.isFocused
+      ? "rgb(244 244 245)"
+      : "white",
+    color: "rgb(24 24 27)",
+    cursor: "pointer",
+  }),
+  multiValue: (base) => ({
+    ...base,
+    backgroundColor: "rgb(239 246 255)",
+    borderRadius: "4px",
+  }),
+  multiValueLabel: (base) => ({
+    ...base,
+    color: "rgb(6 29 111)",
+    fontSize: "12px",
+    fontWeight: 500,
+  }),
+  multiValueRemove: (base) => ({
+    ...base,
+    color: "rgb(6 29 111)",
+    ":hover": { backgroundColor: "rgb(219 234 254)", color: "rgb(6 29 111)" },
+  }),
+  placeholder: (base) => ({
+    ...base,
+    fontSize: "14px",
+    color: "rgb(113 113 122)",
+  }),
+  indicatorSeparator: () => ({ display: "none" }),
+};
+
+const empToOption = (emp, currentUid) => ({
+  value: emp.id,
+  label: emp.id === currentUid ? `${emp.name} (You)` : emp.name,
+});
 
 const ProjectFormModal = ({ isOpen, onClose, project }) => {
-    // Checks if ther is a project passed and if yes then edit mode or Create a new project
-    const isEditMode = Boolean(project);
+  const isEditMode = Boolean(project);
+  const { user } = useAuth();
+  const { employees, loading: employeesLoading } = useEmployees();
 
-    const { user } = useAuth();
+  // Static fields
+  const [name, setName] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState("active");
+  const [activeBugs, setActiveBugs] = useState(0);
+  const [currentPhase, setCurrentPhase] = useState("pitch");
 
-    const [name, setName] = useState("");
-    const [clientName, setClientName] = useState("");
-    const [description, setDescription] = useState("");
-    const [status, setStatus] = useState("active");
-    // active bugs set 0 initially
-    const [activeBugs, setActiveBugs] = useState(0);
-    // meeting notes set 0 initially
-    const [meetingNotes, setMeetingNotes] = useState(0);
-    const [currentPhase, setCurrentPhase] = useState("pitch");
-    const [addProjectLoading, setAddProjectLoading] = useState(false);
+  // Selects
+  const [selectedManagers, setSelectedManagers] = useState([]);
+  const [selectedEmployees, setSelectedEmployees] = useState([]);
 
-    const [selectedManagers, setSelectedManagers] = useState([])
-    const [selectedEmployees, setSelectedEmployees] = useState([])
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
-    // const { managers, loading } = useManagers()
+  // Options
+  const employeeOptions = useMemo(
+    () => employees.map((e) => empToOption(e, user?.uid)),
+    [employees, user?.uid]
+  );
+  const managerOptions = useMemo(
+    () =>
+      employees
+        .filter((e) => e.isManager)
+        .map((e) => ({ value: e.id, label: e.name })),
+    [employees]
+  );
 
-    const { employees, loading: employeesLoading } = useEmployees();
+  /* ------------------------------------------------------------------
+     Prefill scalar fields ONCE per project (or whenever the project ref
+     changes). DO NOT depend on `employees` here — that array updates on
+     every realtime snapshot, and re-running this would clobber the
+     user's in-progress edits.
+  ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (!project) return;
+    setName(project.name || "");
+    setClientName(project.clientName || "");
+    setDescription(project.description || "");
+    setStatus(project.status || "active");
+    setActiveBugs(project.activeBugs ?? 0);
+    setCurrentPhase(project.currentPhase || "pitch");
+  }, [project]);
 
-    // const managerOptions = selectedEmployees.map(emp => ({
-    //     value: emp.value,
-    //     label: emp.label,
-    // }));
-      
-    const employeeOptions = employees.map(emp => ({
-        value: emp.id,
-        label: emp.id === user.uid ? `${emp.name} (You)` : emp.name,
-    }));
+  /* ------------------------------------------------------------------
+     Resolve selected manager/member IDs to react-select options. This
+     CAN depend on `employees` — when the employee list lands or updates
+     (e.g. someone gets renamed elsewhere), labels stay correct. But we
+     only DERIVE the selection from project's IDs, so user changes to
+     the multi-selects are never overwritten.
+  ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (!project || employees.length === 0) return;
 
-    const managerOptions = employees
-    .filter(emp => emp.isManager)
-    .map(emp => ({
-      value: emp.id,
-      label: emp.name,
-    }));
-  
+    setSelectedManagers(
+      (project.managerIds || [])
+        .map((id) => {
+          const m = employees.find((e) => e.id === id);
+          return m ? { value: m.id, label: m.name } : null;
+        })
+        .filter(Boolean)
+    );
 
+    setSelectedEmployees(
+      (project.memberIds || [])
+        .map((id) => {
+          const m = employees.find((e) => e.id === id);
+          return m ? { value: m.id, label: m.name } : null;
+        })
+        .filter(Boolean)
+    );
+    // intentionally only re-run on project change — see comment in body.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, employees.length]);
 
-    // Auto remove manager when employee is removed 
-    useEffect(() => {
-        setSelectedManagers(prev =>
-          prev.filter(manager =>
-            selectedEmployees.some(emp => emp.value === manager.value)
-          )
-        );
-    }, [selectedEmployees]);
+  /* ------------------------------------------------------------------
+     Cleanup managers when an employee is unselected. (A manager must
+     also be a member of the project.)
+  ------------------------------------------------------------------ */
+  useEffect(() => {
+    setSelectedManagers((prev) =>
+      prev.filter((m) =>
+        selectedEmployees.some((e) => e.value === m.value)
+      )
+    );
+  }, [selectedEmployees]);
 
-    useEffect(() => {
-        if (!project || !employees.length) return;
-      
-        setSelectedManagers(
-          (project.managerIds || [])
-            .map(id => {
-              const m = employees.find(e => e.id === id);
-              return m ? { value: m.id, label: m.name } : null;
-            })
-            .filter(Boolean)
-        );
-      
-        setSelectedEmployees(
-          (project.memberIds || [])
-            .map(id => {
-              const e = employees.find(emp => emp.id === id);
-              return e ? { value: e.id, label: e.name } : null;
-            })
-            .filter(Boolean)
-        );
-      }, [project, employees]);
-      
-      
-      
-    // Pre fill form if EDIT MODE
-    useEffect(() => {
-        if (!project) return;
+  /* ------------------------------------------------------------------
+     Reset everything when the modal closes. Fires once on close edge.
+  ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (isOpen) return;
+    setName("");
+    setClientName("");
+    setDescription("");
+    setStatus("active");
+    setActiveBugs(0);
+    setCurrentPhase("pitch");
+    setSelectedManagers([]);
+    setSelectedEmployees([]);
+    setFormError("");
+  }, [isOpen]);
 
-        setName(project.name || "");
-        setClientName(project.clientName);
-        setDescription(project.description || "");
-        setStatus(project.status || "active");
-        setActiveBugs(project.activeBugs || 0);
-        setMeetingNotes(project.meetingNotes || 0);
-        setCurrentPhase(project.currentPhase || "pitch");
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
 
-         // managers (IDs → react-select objects)
-        setSelectedManagers(
-            (project.managerIds || [])
-            .map(id => {
-                const m = employees.find(e => e.id === id);
-                return m ? { value: m.id, label: m.name } : null;
-            })
-            .filter(Boolean)
-        );
+    setFormError("");
 
-         // members (IDs → react-select objects)
-        setSelectedEmployees(
-            (project.memberIds || [])
-            .map(id => {
-                const e = employees.find(emp => emp.id === id);
-                return e ? { value: e.id, label: e.name } : null;
-            })
-            .filter(Boolean)
-        );
-
-        // console.log(employees)
-    }, [project, employees])
-
-    // Reset all fields when modal closes
-    useEffect(() => {
-        if (!isOpen) {
-            setName("");
-            setClientName("");
-            setDescription("");
-            setStatus("active");
-            setActiveBugs(0);
-            setMeetingNotes(0);
-            setCurrentPhase("pitch");
-            setSelectedManagers([]);
-            setSelectedEmployees([]);
-        }
-        // console.log(assignableEmployees)
-    }, [isOpen, employees]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        if (!name.trim()) {
-            toast.error("Project name is required");
-            return;
-        }
-
-        try {
-            setAddProjectLoading(true);
-            // const managerIds = selectedManagers.map(m => m.value);
-
-            // const memberIds = Array.from(
-            //     new Set([
-            //         ...managerIds,
-            //         ...selectedEmployees.map(e => e.value),
-            //     ])
-            // );
-
-            const memberIds = selectedEmployees.map(e => e.value);
-            const managerIds = selectedManagers.map(m => m.value);
-
-            const payload = {
-                name,
-                description,
-                status,
-                clientName,
-                managerIds,
-                memberIds,
-                activeBugs,
-                meetingNotes,
-                currentPhase,
-            }
-            if (isEditMode) {
-                await updateProject(project.id, payload);
-                toast.success("Project Updated");
-            } else {
-                await createProject(payload, user.uid);
-                toast.success("Project created")
-            }
-
-            // reset and close the modal 
-            setName("");
-            setClientName("");
-            setDescription("");
-            setStatus("active");
-            setActiveBugs(0);
-            setMeetingNotes(0);
-            setCurrentPhase("pitch");
-            setSelectedManagers([]);
-            setSelectedEmployees([]);
-
-            onClose();
-
-        } catch (err) {
-            console.log(err);
-            toast.error(
-                isEditMode ? "Failed to update project" : "Failed to create project"
-            )
-        } finally {
-            setAddProjectLoading(false);
-        }
+    if (!user?.uid) {
+      setFormError("You're not signed in. Please log in again.");
+      return;
+    }
+    if (!name.trim()) {
+      setFormError("Project name is required.");
+      return;
     }
 
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={isEditMode ? `${project.name}` : "Create Project"}>
-            <form onSubmit={handleSubmit} className="">
-                {/* Project Name */}
-                <div className="flex flex-row gap-sm mb-lg">
-                    <Input label='Project Name' type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Client Website Revamp" />
-                    <Input label='Client Name' type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client's Name" />
-                </div>
+    const memberIds = selectedEmployees.map((e) => e.value);
+    const managerIds = selectedManagers.map((m) => m.value);
 
-                {/* Project Description */}
-                <div className="mb-lg">
-                    <label htmlFor='description' className=" text-text-secondary text-label mb-xs">Description</label>
-                    <textarea id='description' rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Landing page + dashboard" className="w-full rounded-md border border-border px-3 text-body focus:border-accent focus:ring-2 focus:ring-accent-soft outline-none" />
-                </div>
+    const payload = {
+      name: name.trim(),
+      description,
+      status,
+      clientName,
+      managerIds,
+      memberIds,
+      activeBugs,
+      currentPhase,
+    };
 
-                <div className="flex gap-md items-baseline mb-lg">
-                    {/* Select Project Manager */}
-                    <div className="w-full">
-                        <label className="text-text-secondary text-label mb-xs">
-                            Project Managers ({selectedManagers.length})
-                        </label>
+    try {
+      setSubmitting(true);
+      const result = isEditMode
+        ? await updateProject(project.id, payload)
+        : await createProject(payload, user.uid);
 
-                        <Select
-                            styles={selectStyles}
-                            isMulti
-                            options={managerOptions}
-                            value={selectedManagers}
-                            onChange={setSelectedManagers}
-                            isLoading={employeesLoading}
-                            placeholder="Assign managers..."
-                            classNamePrefix="react-select"
-                        />
-                    </div>
-
-                      {/* Select Members to asign the project to */}
-                      <div className="w-full">
-                        <label className="text-text-secondary text-label mb-xs">
-                            Assign to ({selectedEmployees.length})
-                        </label>
-
-                        <Select
-                            styles={selectStyles}
-                            isMulti
-                            options={employeeOptions}
-                            value={selectedEmployees}
-                            onChange={setSelectedEmployees}
-                            isLoading={employeesLoading}
-                            placeholder="Assign to..."
-                            classNamePrefix="react-select"
-                        />
-                    </div>
-
-                </div>
-
-
-                {/* Status and phase */}
-                <div className="flex flex-row gap-sm mb-0">
-                    {/* Status */}
-                    <div className="mb-lg w-full">
-                        <label className="text-text-secondary text-label mb-xs">Status</label>
-                        <select className="w-full rounded-lg border px-3 py-2 text-gray-600 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
-                            <option value="active">Active</option>
-                            <option value="completed">Completed</option>
-                        </select>
-                    </div>
-
-                    {/* Current Phase */}
-                    <div className="mb-lg w-full">
-                        <label className="text-text-secondary text-label mb-xs">Phase</label>
-                        <select className="w-full rounded-lg border px-3 py-2 text-gray-600 text-sm" value={currentPhase} onChange={(e) => setCurrentPhase(e.target.value)}>
-                            <option value="pitch">Pitch / Strategy</option>
-                            <option value="design">UI / UX Design</option>
-                            <option value="development">Development</option>
-                            <option value="seo">SEO</option>
-                        </select>
-                    </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex justify-end gap-3 pt-2">
-                    <Button type="button" className='bg-white !text-black border border-black hover:bg-gray-100' onClick={onClose}> Cancel </Button>
-                    <Button type="submit" disabled={addProjectLoading}> 
-                        {isEditMode ? addProjectLoading ? "Updating..." : "Update" : addProjectLoading ? "Creating..." : "Create Project"}
-                    </Button>
-                </div>
-            </form>
-
-
-        </Modal>
-    )
-}
-
-export default ProjectFormModal
-
-const selectStyles = {
-    control: (base) => ({
-        ...base,
-        height: "60px",
-        minHeight: "60px",
-        border: "1px solid rgb(229 231 235 / 1)",
-        borderRadius: "8px",
-        fontSize: "14px",
-        overflow: "hidden",
-        alignItems: "start",
-        padding: "2px 0",
-      }),
-  
-    valueContainer: (base) => ({
-        ...base,
-        flex: "0 0 80%",
-        maxWidth: "80%",
-        padding: "0px 8px",
-        maxHeight: "52px",
-        overflowY: "auto",
-        overflowX: "hidden",
-        flexWrap: "wrap",
-        alignContent: "flex-start",
-        scrollbarWidth: "thin",
-      }),
-
-    multiValue: (base) => ({
-        ...base,
-        margin: "2px 4px 2px 0",
-    }),
-      
-  
-    indicatorsContainer: (base) => ({
-      ...base,
-      flex: "0 0 20%",
-      maxWidth: "20%",
-      justifyContent: "flex-end",
-      alignItems: "flex-start",
-      paddingTop: "6px",
-    }),
-  
-    dropdownIndicator: (base) => ({
-      ...base,
-      padding: "2px",
-      color: "#6b7280",
-      ":hover": {
-        color: "#111827",
-      },
-    }),
-  
-    clearIndicator: (base) => ({
-      ...base,
-      padding: "2px",
-    }),
-  
-    indicatorSeparator: () => ({
-      display: "none",
-    }),
-  
-    placeholder: (base) => ({
-      ...base,
-      fontSize: "14px",
-      whiteSpace: "nowrap",
-    }),
-  
-    option: (base, state) => ({
-      ...base,
-      fontSize: "14px",
-      padding: "8px 12px",
-      backgroundColor: state.isFocused
-        ? "#f3f4f6"
-        : state.isSelected
-        ? "#e5e7eb"
-        : "white",
-      color: "#111827",
-      cursor: "pointer",
-    }),
+      const failures = result?.syncFailures ?? [];
+      if (failures.length > 0) {
+        toast.warning(
+          `${isEditMode ? "Project updated" : "Project created"}, but couldn't link ${
+            failures.length
+          } team member${failures.length === 1 ? "" : "s"}: ${failures[0].reason}`,
+          { autoClose: 7000 }
+        );
+      } else {
+        toast.success(isEditMode ? "Project updated" : "Project created");
+      }
+      onClose();
+    } catch (err) {
+      console.error("ProjectFormModal:", err);
+      const msg =
+        err?.code ||
+        err?.message ||
+        (isEditMode ? "Failed to update project" : "Failed to create project");
+      setFormError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
-  
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditMode ? `Edit · ${project?.name}` : "Create project"}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="project-form"
+            loading={submitting}
+          >
+            {isEditMode ? "Save changes" : "Create project"}
+          </Button>
+        </>
+      }
+    >
+      <form id="project-form" onSubmit={handleSubmit} noValidate>
+        {formError && (
+          <div
+            role="alert"
+            className="mb-md p-sm rounded-md bg-error-50 border border-error-200 text-error-800 text-bodySm"
+          >
+            {formError}
+          </div>
+        )}
+
+        <div className="flex flex-row gap-md mb-md">
+          <Input
+            label="Project name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Client website revamp"
+          />
+          <Input
+            label="Client name"
+            type="text"
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+            placeholder="Acme Inc."
+          />
+        </div>
+
+        <div className="mb-md">
+          <label
+            htmlFor="description"
+            className="text-fg-muted text-label mb-xs block"
+          >
+            Description
+          </label>
+          <textarea
+            id="description"
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Landing page + dashboard overhaul"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-body text-fg
+              placeholder:text-fg-subtle
+              focus:border-accent focus:shadow-focus-ring focus:outline-none transition"
+          />
+        </div>
+
+        <div className="flex gap-md mb-md">
+          <div className="w-full">
+            <label className="text-fg-muted text-label mb-xs block">
+              Team members ({selectedEmployees.length})
+            </label>
+            <Select
+              isMulti
+              options={employeeOptions}
+              value={selectedEmployees}
+              onChange={(opts) => setSelectedEmployees(opts || [])}
+              isLoading={employeesLoading}
+              placeholder="Assign team members…"
+              styles={reactSelectStyles}
+              classNamePrefix="react-select"
+            />
+          </div>
+
+          <div className="w-full">
+            <label className="text-fg-muted text-label mb-xs block">
+              Project managers ({selectedManagers.length})
+            </label>
+            <Select
+              isMulti
+              options={managerOptions.filter((m) =>
+                selectedEmployees.some((e) => e.value === m.value)
+              )}
+              value={selectedManagers}
+              onChange={(opts) => setSelectedManagers(opts || [])}
+              isLoading={employeesLoading}
+              placeholder="Promote a member to manager…"
+              styles={reactSelectStyles}
+              classNamePrefix="react-select"
+              noOptionsMessage={() =>
+                selectedEmployees.length === 0
+                  ? "Add team members first"
+                  : "No managers among the selected members"
+              }
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-row gap-md mb-md">
+          <div className="w-full">
+            <label className="text-fg-muted text-label mb-xs block">
+              Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full h-control rounded-md border border-line bg-surface px-3 text-body text-fg
+                focus:border-accent focus:shadow-focus-ring focus:outline-none transition"
+            >
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="completed">Completed</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+
+          <div className="w-full">
+            <label className="text-fg-muted text-label mb-xs block">
+              Phase
+            </label>
+            <select
+              value={currentPhase}
+              onChange={(e) => setCurrentPhase(e.target.value)}
+              className="w-full h-control rounded-md border border-line bg-surface px-3 text-body text-fg
+                focus:border-accent focus:shadow-focus-ring focus:outline-none transition"
+            >
+              <option value="pitch">Pitch / Strategy</option>
+              <option value="design">UI / UX Design</option>
+              <option value="development">Development</option>
+              <option value="seo">SEO</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-row gap-md">
+          <Input
+            label="Active bugs"
+            type="number"
+            min={0}
+            value={activeBugs}
+            onChange={(e) => setActiveBugs(Number(e.target.value) || 0)}
+            placeholder="0"
+            wrapperClassName="!w-1/3"
+          />
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+export default ProjectFormModal;

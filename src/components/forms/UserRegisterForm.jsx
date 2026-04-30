@@ -1,198 +1,362 @@
-import React, { useEffect, useState } from "react"
-import { toast } from "react-toastify"
-import { createUserWithEmailAndPassword } from "firebase/auth"
-import { doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore"
+import React, { useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
+import Select from "react-select";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 
-import Input from "../ui/Input"
-import PasswordInput from "../ui/PasswordInput"
-import Button from "../ui/Button"
+import Input from "../ui/Input";
+import PasswordInput from "../ui/PasswordInput";
+import Button from "../ui/Button";
 
-import { auth, db } from "../../services/firebase"
-import useManagers from "../../hooks/useManagers"
+import { auth, db } from "../../services/firebase";
+import { syncUserProjects } from "../../services/employee.service";
+import useManagers from "../../hooks/useManagers";
+import { useProjects } from "../../hooks/useProjects";
 
-const avatars = ["boy_1.jpeg", "boy_2.jpeg", "boy_3.jpeg"]
+const avatars = ["boy_1.jpeg", "boy_2.jpeg", "boy_3.jpeg"];
+
+const reactSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: "36px",
+    borderColor: state.isFocused
+      ? "rgb(6 29 111)"
+      : "rgb(228 228 231)",
+    boxShadow: state.isFocused
+      ? "0 0 0 3px rgba(59, 130, 246, 0.25)"
+      : "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    "&:hover": {
+      borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(212 212 216)",
+    },
+  }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: "14px",
+    backgroundColor: state.isSelected
+      ? "rgb(239 246 255)"
+      : state.isFocused
+      ? "rgb(244 244 245)"
+      : "white",
+    color: "rgb(24 24 27)",
+    cursor: "pointer",
+  }),
+  multiValue: (base) => ({
+    ...base,
+    backgroundColor: "rgb(239 246 255)",
+    borderRadius: "4px",
+  }),
+  multiValueLabel: (base) => ({
+    ...base,
+    color: "rgb(6 29 111)",
+    fontSize: "12px",
+    fontWeight: 500,
+  }),
+  multiValueRemove: (base) => ({
+    ...base,
+    color: "rgb(6 29 111)",
+    ":hover": { backgroundColor: "rgb(219 234 254)", color: "rgb(6 29 111)" },
+  }),
+  placeholder: (base) => ({
+    ...base,
+    fontSize: "14px",
+    color: "rgb(113 113 122)",
+  }),
+  indicatorSeparator: () => ({ display: "none" }),
+};
 
 const UserForm = ({ user, submitLabel = "Submit", onSuccess }) => {
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [role, setRole] = useState("");
-    const [managerId, setManagerId] = useState("");
-    const [whatsapp, setWhatsapp] = useState("");
-    const [phoneNumber, setPhoneNumber] = useState("");
-    const [joinedDate, setJoinedDate] = useState("");
-    const [designation, setDesignation] = useState("");
-    const [assignedProjects, setAssignedProjects] = useState([]);
-    
-    const [loading, setLoading] = useState(false)
+  const isEdit = Boolean(user);
 
-    useEffect(() => {
-        if (user) {
-            setName(user.name || "")
-            setEmail(user.email || "")
-            setRole(user.role || "")
-            setManagerId(user.managerID || "")
-            setWhatsapp(user.whatsapp || "")
-            setPhoneNumber(user.phoneNumber || "")
-            setJoinedDate(user.joinedDate || "")
-            setDesignation(user.designation || "")
-            setAssignedProjects(user.assignedProjects || "")
-        } else {
-            // reset form when switching back to Add mode
-            setName("")
-            setEmail("")
-            setRole("")
-            setManagerId("")
-            setPassword("")
-            setWhatsapp("")
-            setPhoneNumber("")
-            setJoinedDate("")
-            setDesignation("")
-            setAssignedProjects([]);
-        }
+  // Form state
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("");
+  const [managerId, setManagerId] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [joinedDate, setJoinedDate] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [selectedProjects, setSelectedProjects] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-    }, [user])
+  const { managers, loading: loadingManagers } = useManagers();
+  const { projects, loading: loadingProjects } = useProjects();
 
-    const { managers, loading: loadingManagers } = useManagers()
+  const projectOptions = useMemo(() => {
+    // Dedupe by project id (defensive against any duplicate streaming from
+    // the realtime listener) and disambiguate name collisions by appending
+    // the client name so two "Motigram" projects don't render identically.
+    const nameCount = new Map();
+    (projects ?? []).forEach((p) => {
+      if (!p?.name) return;
+      nameCount.set(p.name, (nameCount.get(p.name) || 0) + 1);
+    });
 
-    const handleSubmit = async (e) => {
-        e.preventDefault()
-        if (loading) return
+    const seen = new Set();
+    return (projects ?? [])
+      .filter((p) => {
+        if (!p?.id || seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      })
+      .map((p) => {
+        const collides = (nameCount.get(p.name) || 0) > 1;
+        const label = collides && p.clientName
+          ? `${p.name} · ${p.clientName}`
+          : collides
+          ? `${p.name} · ${p.id.slice(0, 6)}`
+          : p.name || "Untitled";
+        return { value: p.id, label };
+      });
+  }, [projects]);
 
-        if (!role || role === "0") {
-            toast.error("Please select a role")
-            return
-        }
+  // Reset/prefill on user prop change
+  useEffect(() => {
+    if (user) {
+      setName(user.name || "");
+      setEmail(user.email || "");
+      setRole(user.role || "");
+      setManagerId(user.managerID || "");
+      setWhatsapp(user.whatsapp || "");
+      setPhoneNumber(user.phoneNumber || "");
+      setJoinedDate(user.joinedDate || "");
+      setDesignation(user.designation || "");
+      // Dedupe legacy duplicates that may exist in older user docs from
+      // the previous arrayUnion/arrayRemove flow (where rename drift could
+      // accumulate the same project under different stored names).
+      const seenIds = new Set();
+      const dedupedAssigned = (user.assignedProjects || []).filter((p) => {
+        if (!p?.id || seenIds.has(p.id)) return false;
+        seenIds.add(p.id);
+        return true;
+      });
+      setSelectedProjects(
+        dedupedAssigned.map((p) => ({ value: p.id, label: p.name }))
+      );
+    } else {
+      setName("");
+      setEmail("");
+      setPassword("");
+      setRole("");
+      setManagerId("");
+      setWhatsapp("");
+      setPhoneNumber("");
+      setJoinedDate("");
+      setDesignation("");
+      setSelectedProjects([]);
+    }
+  }, [user]);
 
-        if (role !== "manager" && !managerId) {
-            toast.error("Please select a manager")
-            return
-        }
+  // The new (canonical) list of {id, name} for assignedProjects
+  const buildAssignedProjects = () =>
+    selectedProjects.map((opt) => ({ id: opt.value, name: opt.label }));
 
-        const randomAvatar =
-            avatars[Math.floor(Math.random() * avatars.length)]
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (loading) return;
 
-        try {
-            setLoading(true)
-
-            // Update user if USER found 
-            if (user) {
-                await updateDoc(doc(db, "users", user.id), {
-                    name,
-                    email,
-                    role,
-                    isManager: role === "manager",
-                    managerID: managerId,
-                    avatar: randomAvatar,
-                    whatsapp: whatsapp,
-                    phoneNumber: phoneNumber,
-                    joinedDate: joinedDate,
-                    designation: designation,
-                    assignedProjects: assignedProjects,
-                    updatedAt: serverTimestamp(),
-                  })
-                  toast.success("User updated")
-            }else {
-                if (!password) {
-                    toast.error("Password is required")
-                    setLoading(false)
-                    return
-                }
-
-                const cred = await createUserWithEmailAndPassword(auth, email, password)
-                const user = cred.user
-    
-                await setDoc(doc(db, "users", user.uid), {
-                    name,
-                    email,
-                    role,
-                    isManager: role === "manager",
-                    managerID: managerId,
-                    avatar: randomAvatar,
-                    whatsapp: whatsapp,
-                    phoneNumber: phoneNumber,
-                    joinedDate: joinedDate,
-                    designation: designation,
-                    assignedProjects: [],
-                    createdAt: serverTimestamp(),
-                })
-    
-                toast.success("User created")
-            }
-            onSuccess?.()
-
-        } catch (err) {
-            toast.error(err.message)
-        } finally {
-            setLoading(false)
-        }
+    if (!role || role === "0") {
+      toast.error("Please select a role");
+      return;
+    }
+    if (role !== "manager" && !managerId) {
+      toast.error("Please select a manager");
+      return;
     }
 
-    return (
-        <form onSubmit={handleSubmit} className="">
-            <div className="flex flex-row gap-2 mb-lg">
-                <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
-                <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+    const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+    const newAssignedProjects = buildAssignedProjects();
 
-            <div className="flex flex-row gap-2 mb-lg">
-                <div className="w-full">
-                    <label className="text-text-secondary text-label mb-xs">Role</label>
-                    <select
-                        value={role}
-                        onChange={(e) => setRole(e.target.value)}
-                        className="w-full h-10 rounded-md border px-3"
-                    >
-                        <option value="0">Select Role</option>
-                        <option value="employee">Employee</option>
-                        <option value="hr">HR</option>
-                        <option value="admin">Admin</option>
-                        <option value="manager">Manager</option>
-                    </select>
-                </div>
+    try {
+      setLoading(true);
 
-                <div className="w-full">
-                    <label className="text-text-secondary text-label mb-xs">
-                        Select Manager
-                    </label>
-                    <select
-                        value={managerId}
-                        onChange={(e) => setManagerId(e.target.value)}
-                        className="w-full h-10 rounded-md border px-3"
-                    >
-                        <option value="">Select Manager</option>
-                        {!loadingManagers &&
-                            managers.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                    {m.name}
-                                </option>
-                            ))}
-                    </select>
-                </div>
-            </div>
+      if (isEdit) {
+        // Persist all editable user fields EXCEPT assignedProjects (handled by syncUserProjects)
+        await updateDoc(doc(db, "users", user.id), {
+          name,
+          email,
+          role,
+          isManager: role === "manager",
+          managerID: managerId,
+          avatar: randomAvatar,
+          whatsapp,
+          phoneNumber,
+          joinedDate,
+          designation,
+          updatedAt: serverTimestamp(),
+        });
 
-            <div className="flex flex-row gap-2 mb-lg">
-                <div className="w-full">
-                    <Input label="Joined Date" type="date" value={joinedDate} onChange={(e) => setJoinedDate(e.target.value)} />
-                </div>
-                <div className="w-full">
-                    <Input label="Designation" type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} />
-                </div>
+        // Bi-directional project sync
+        await syncUserProjects(
+          user.id,
+          user.assignedProjects || [],
+          newAssignedProjects
+        );
 
-            </div>
+        toast.success("User updated");
+      } else {
+        if (!password) {
+          toast.error("Password is required");
+          setLoading(false);
+          return;
+        }
 
-            <div className="flex align-center justify-between gap-2 mb-lg">
-                <Input label="Whatsapp" type="number" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-                <Input label="Phone" type="number" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
-            </div>
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const newUserId = cred.user.uid;
 
-        
-            <Button type="submit" disabled={loading}>
-                {loading ? "Saving..." : submitLabel}
-            </Button>
-        </form>
-    )
-}
+        await setDoc(doc(db, "users", newUserId), {
+          name,
+          email,
+          role,
+          isManager: role === "manager",
+          managerID: managerId,
+          avatar: randomAvatar,
+          whatsapp,
+          phoneNumber,
+          joinedDate,
+          designation,
+          assignedProjects: [],
+          createdAt: serverTimestamp(),
+        });
 
-export default UserForm
+        // If projects were chosen at create time, push them through the sync
+        if (newAssignedProjects.length > 0) {
+          await syncUserProjects(newUserId, [], newAssignedProjects);
+        }
+
+        toast.success("User created");
+      }
+
+      onSuccess?.();
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="flex flex-row gap-md mb-lg">
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={isEdit}
+        />
+      </div>
+
+      {!isEdit && (
+        <PasswordInput
+          label="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      )}
+
+      <div className="flex flex-row gap-md mb-lg">
+        <div className="w-full">
+          <label className="text-fg-muted text-label mb-xs block">Role</label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="w-full h-control rounded-md border border-line bg-surface px-3 text-body text-fg
+              focus:border-accent focus:shadow-focus-ring focus:outline-none transition"
+          >
+            <option value="0">Select role</option>
+            <option value="employee">Employee</option>
+            <option value="hr">HR</option>
+            <option value="admin">Admin</option>
+            <option value="manager">Manager</option>
+          </select>
+        </div>
+
+        <div className="w-full">
+          <label className="text-fg-muted text-label mb-xs block">
+            Reports to
+          </label>
+          <select
+            value={managerId}
+            onChange={(e) => setManagerId(e.target.value)}
+            className="w-full h-control rounded-md border border-line bg-surface px-3 text-body text-fg
+              focus:border-accent focus:shadow-focus-ring focus:outline-none transition"
+          >
+            <option value="">Select manager</option>
+            {!loadingManagers &&
+              managers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Projects assignment — bi-directional with the project doc */}
+      <div className="mb-lg">
+        <label className="text-fg-muted text-label mb-xs block">
+          Assigned projects ({selectedProjects.length})
+        </label>
+        <Select
+          isMulti
+          options={projectOptions}
+          value={selectedProjects}
+          onChange={(opts) => setSelectedProjects(opts || [])}
+          isLoading={loadingProjects}
+          placeholder="Assign projects to this user…"
+          classNamePrefix="react-select"
+          styles={reactSelectStyles}
+        />
+        <p className="text-caption text-fg-subtle mt-xs">
+          Adding/removing here updates each project's team automatically.
+        </p>
+      </div>
+
+      <div className="flex flex-row gap-md mb-lg">
+        <Input
+          label="Joined date"
+          type="date"
+          value={joinedDate}
+          onChange={(e) => setJoinedDate(e.target.value)}
+        />
+        <Input
+          label="Designation"
+          type="text"
+          value={designation}
+          onChange={(e) => setDesignation(e.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-row gap-md mb-lg">
+        <Input
+          label="WhatsApp"
+          type="tel"
+          value={whatsapp}
+          onChange={(e) => setWhatsapp(e.target.value)}
+        />
+        <Input
+          label="Phone"
+          type="tel"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+        />
+      </div>
+
+      <Button type="submit" loading={loading} fullWidth>
+        {loading ? "Saving" : submitLabel}
+      </Button>
+    </form>
+  );
+};
+
+export default UserForm;

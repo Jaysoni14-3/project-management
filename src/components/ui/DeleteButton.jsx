@@ -1,12 +1,16 @@
-import React from 'react'
-import { BiTrash } from 'react-icons/bi'
+import React from "react";
+import { Trash2 } from "lucide-react";
+import IconButton from "./IconButton";
 
-const DeleteButton = ({ onClick }) => {
-  return (
-    <div onClick={onClick} className='edit-button cursor-pointer bg-red-300 w-max p-2 rounded-md text-red-950'>
-        <BiTrash />
-    </div>
-  )
-}
+const DeleteButton = ({ onClick, ...rest }) => (
+  <IconButton
+    icon={Trash2}
+    onClick={onClick}
+    variant="destructive"
+    size="sm"
+    aria-label="Delete"
+    {...rest}
+  />
+);
 
-export default DeleteButton
+export default DeleteButton;

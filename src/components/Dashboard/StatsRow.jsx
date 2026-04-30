@@ -1,60 +1,46 @@
-import React from 'react'
-import StatCard from './StatCard'
-
-import {
-    FiCheckCircle,
-    FiUsers,
-    FiTrendingUp,
-    FiAlertTriangle,
-  } from "react-icons/fi";
+import React from "react";
+import { CheckCircle2, TrendingUp, Users, Bug } from "lucide-react";
+import StatCard from "./StatCard";
 
 const StatsRow = ({
-    employeeCount,
-    activeProjectCount,
-    completedProjectCount,
-    statsLoading,
-    bugs,
+  employeeCount,
+  activeProjectCount,
+  completedProjectCount,
+  statsLoading,
+  bugs,
 }) => {
-    if(statsLoading){
-        return(
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-lg mb-lg">
-            {[...Array(4)].map((_, i) => (
-                <div
-                key={i}
-                className="h-24 bg-muted rounded-md animate-pulse"
-                />
-            ))}
-            </div>
-        )
-    }
-    return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-lg mb-lg">
-            <StatCard
-                label="Completed Projects"
-                value={completedProjectCount}
-                icon={FiCheckCircle}
-                variant="success"
-            />
-            <StatCard
-                label="Active Projects"
-                value={activeProjectCount}
-                icon={FiTrendingUp}
-                variant="primary"
-            />
-            <StatCard
-                label="Employees"
-                value={employeeCount}
-                icon={FiUsers}
-                variant="neutral"
-            />
-            <StatCard
-                label="Bugs"
-                value={bugs}
-                icon={FiAlertTriangle}
-                variant="danger"
-            />
-        </div>
-    )
-}
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md">
+      <StatCard
+        label="Active projects"
+        value={activeProjectCount}
+        icon={TrendingUp}
+        variant="accent"
+        loading={statsLoading}
+      />
+      <StatCard
+        label="Completed projects"
+        value={completedProjectCount}
+        icon={CheckCircle2}
+        variant="success"
+        loading={statsLoading}
+      />
+      <StatCard
+        label="Team members"
+        value={employeeCount}
+        icon={Users}
+        variant="default"
+        loading={statsLoading}
+      />
+      <StatCard
+        label="Open bugs"
+        value={bugs}
+        icon={Bug}
+        variant="danger"
+        loading={statsLoading}
+      />
+    </div>
+  );
+};
 
-export default StatsRow
+export default StatsRow;

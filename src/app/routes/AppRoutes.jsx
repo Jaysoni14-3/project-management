@@ -6,10 +6,11 @@ import DashboardLayout from "../layouts/DashboardLayout";
 
 
 import Dashboard from "../../pages/Dashboard";
-import Login from "../../pages/login";
+import Login from "../../pages/Login";
 import Register from "../../pages/Register";
 import ProfileSettings from "../../pages/ProfileSettings";
 import Projects from "../../pages/Projects";
+import ProjectDetails from "../../pages/ProjectDetails";
 import Employees from "../../pages/Employees";
 
 export default function AppRoutes() {
@@ -34,6 +35,7 @@ export default function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="/settings" element={<ProfileSettings />} />
         <Route path="/projects" element={<Projects />} />
+        <Route path="/projects/:projectId" element={<ProjectDetails />} />
         <Route path="/employees" element={<Employees />} />
       </Route>
 

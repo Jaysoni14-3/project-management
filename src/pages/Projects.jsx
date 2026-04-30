@@ -1,48 +1,81 @@
-import React, { useMemo, useState } from 'react'
-import { useProjects } from '../hooks/useProjects';
-import Button from '../components/ui/Button';
-import { BiPlus } from 'react-icons/bi';
-import ProjectFormModal from '../features/projects/ProjectFormModal';
-import ProjectCard from '../features/projects/components/ProjectCard';
+import React, { useMemo, useState } from "react";
+import { Plus, FolderKanban } from "lucide-react";
+
+import PageHeader from "../components/ui/PageHeader";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import Skeleton from "../components/ui/Skeleton";
+
+import { useProjects } from "../hooks/useProjects";
+import ProjectFormModal from "../features/projects/ProjectFormModal";
+import ProjectCard from "../features/projects/components/ProjectCard";
 
 const Projects = () => {
-  const [isProjectModalOpen, setProjectModalOpen] = useState(false)
+  const [isProjectModalOpen, setProjectModalOpen] = useState(false);
+  const { projects, loading } = useProjects();
 
-  const { projects } = useProjects()
-
-   // get all projects names from project id Globally and pass it as props 
-   const projectsNameMap = useMemo(() => {
-    if (!projects || projects.length === 0) return {};
-  
-    const map = {};
-    projects.forEach((project) => {
-      map[project.id] = project.name; // or project.projectName if that's your field
-    });
-  
-    return map;
+  // Project name lookup (kept in case child cards want it)
+  // eslint-disable-next-line no-unused-vars
+  const projectsNameMap = useMemo(() => {
+    if (!projects?.length) return {};
+    return projects.reduce((map, p) => ({ ...map, [p.id]: p.name }), {});
   }, [projects]);
 
   return (
-    <>
-      {/* Project cards */}
-      <div className='projects-section border rounded-sm'>
-        <div className="section-header flex items-center justify-between shadow-card p-md py-md">
-          <h2 className='text-text-primary text-page font-medium'>Projects</h2>
-          <Button type="button" onClick={() => setProjectModalOpen(true)} className='flex items-center justify-center g-xs w-max px-sm'><BiPlus />Add New</Button>
+    <div className="flex flex-col gap-xl">
+      <PageHeader
+        title="Projects"
+        description="Track every project across your workspace — status, team, and momentum."
+        actions={
+          <Button
+            leadingIcon={Plus}
+            onClick={() => setProjectModalOpen(true)}
+          >
+            New project
+          </Button>
+        }
+      />
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-md">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="bg-surface border border-line rounded-lg p-lg flex flex-col gap-md"
+            >
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-5/6" />
+              <Skeleton className="h-2 w-full mt-md" />
+            </div>
+          ))}
         </div>
-        <div className="section-body project-listing grid grid-cols-3 gap-lg p-md">
-          {projects.length > 0 ? (
-            <ProjectCard projects={projects} />
-          ) : (
-            <p className="text-gray-500 col-span-3 text-center py-8">No projects found. Create your first project!</p>
-          )}
+      ) : projects.length === 0 ? (
+        <EmptyState
+          icon={FolderKanban}
+          title="No projects yet"
+          description="Spin up your first project to start organizing work, assigning teammates, and tracking progress."
+          action={
+            <Button
+              leadingIcon={Plus}
+              onClick={() => setProjectModalOpen(true)}
+            >
+              Create your first project
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-md">
+          <ProjectCard projects={projects} />
         </div>
-      </div>
+      )}
 
+      <ProjectFormModal
+        isOpen={isProjectModalOpen}
+        onClose={() => setProjectModalOpen(false)}
+      />
+    </div>
+  );
+};
 
-      <ProjectFormModal isOpen={isProjectModalOpen} onClose={() => setProjectModalOpen(false)} />
-    </>
-  )
-}
-
-export default Projects
+export default Projects;

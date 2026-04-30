@@ -1,92 +1,135 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import AuthCard from '../components/ui/AuthCard';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import PasswordInput from '../components/ui/PasswordInput';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../services/firebase';
-import { Bounce, toast, ToastContainer } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { Mail, AlertCircle } from "lucide-react";
+
+import AuthCard from "../components/ui/AuthCard";
+import Input from "../components/ui/Input";
+import PasswordInput from "../components/ui/PasswordInput";
+import Button from "../components/ui/Button";
+
+import { auth } from "../services/firebase";
+import { useAuth } from "../context/AuthContext";
+
+const friendlyAuthError = (code) => {
+  switch (code) {
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return "The email or password you entered is incorrect.";
+    case "auth/invalid-email":
+      return "That doesn't look like a valid email address.";
+    case "auth/user-disabled":
+      return "This account has been disabled. Contact your admin.";
+    case "auth/too-many-requests":
+      return "Too many failed attempts. Try again in a few minutes.";
+    case "auth/network-request-failed":
+      return "We couldn't reach the server. Check your connection.";
+    default:
+      return "Something went wrong signing in. Please try again.";
+  }
+};
 
 const Login = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const loginAttemptRef = useRef(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  // Redirect if already logged in or after successful login
   useEffect(() => {
     if (!authLoading && user) {
-      loginAttemptRef.current = false;
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     }
   }, [user, authLoading, navigate]);
 
-  async function handleLogin(e){
-    e?.preventDefault();
-    
-    if (isLoading) return; // Prevent double submission
-    
-    setIsLoading(true);
-    loginAttemptRef.current = true;
-    
-    try{
-      await signInWithEmailAndPassword(auth, email, password)
-      // Don't navigate here - let useEffect handle it once auth state updates
-      // The auth state change will trigger the useEffect above
-      toast("Logged in Successfully")
-    }catch(err){
-      setIsLoading(false);
-      loginAttemptRef.current = false;
-      toast("Error logging in")
-      console.log(err.message)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+
+    setFormError("");
+
+    if (!email || !password) {
+      setFormError("Please enter your email and password.");
+      return;
     }
-  }
+
+    setSubmitting(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // Auth state listener will redirect via the effect above.
+    } catch (err) {
+      setFormError(friendlyAuthError(err?.code));
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <>
-      <div className='max-w-[350px] w-full'>
-        <AuthCard title="Login">
-          <form onSubmit={handleLogin}>
-            <div className="mb-lg">
-              <Input label='Email' value={email} onChange={(e)=> setEmail(e.target.value)} id="email" type='email' placeholder="you@example.com" disabled={isLoading} />
-            </div>
-            <div className="mb-lg">
-              <PasswordInput label='Password' value={password} onChange={(e)=> setPassword(e.target.value)} id="password" type='password' placeholder="*****" disabled={isLoading} />
-            </div>
-            <Button type="submit" className="mt-lg" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
-          </form>
-        </AuthCard>
-
-        <p className="text-text-secondary text-body text-center mt-md">
-          Don’t have an account?{" "}
+    <AuthCard
+      title="Welcome back"
+      subtitle="Sign in to your EKAIO workspace"
+      footer={
+        <>
+          Don't have an account?{" "}
           <Link
             to="/register"
-            className="text-accent hover:text-accent-hover"
+            className="text-accent hover:text-accent-hover font-medium transition-colors duration-fast"
           >
-            Register
+            Create one
           </Link>
-        </p>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} noValidate>
+        {formError && (
+          <div
+            role="alert"
+            className="flex gap-sm items-start mb-lg p-md rounded-md
+              bg-error-50 border border-error-200 text-error-800 animate-slide-down"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0 mt-[2px]" aria-hidden />
+            <p className="text-bodySm">{formError}</p>
+          </div>
+        )}
 
-        <ToastContainer position="top-right"
-          autoClose={5000}
-          hideProgressBar={true}
-          newestOnTop={false}
-          closeOnClick={false}
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          transition={Bounce}
-        />
+        <div className="flex flex-col gap-md">
+          <Input
+            label="Email"
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
+            leadingIcon={Mail}
+            autoFocus
+          />
 
-      </div>
-    </>
-  )
-}
+          <PasswordInput
+            label="Password"
+            id="password"
+            autoComplete="current-password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={submitting}
+          />
+        </div>
 
-export default Login
+        <Button
+          type="submit"
+          loading={submitting}
+          fullWidth
+          className="mt-xl"
+        >
+          {submitting ? "Signing in" : "Sign in"}
+        </Button>
+      </form>
+    </AuthCard>
+  );
+};
+
+export default Login;

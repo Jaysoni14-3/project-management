@@ -1,111 +1,141 @@
-import React, { useMemo, useState } from 'react'
-import useEmployees from '../hooks/useEmployee'
-import { deleteDoc, doc } from 'firebase/firestore'
-import { db } from '../services/firebase'
-import EmployeeCard from '../features/employees/components/EmployeeCard'
-import { BiPlus } from 'react-icons/bi'
-import Button from '../components/ui/Button'
-import { useProjects } from '../hooks/useProjects'
-import AddUserModal from '../features/employees/AddUserModal'
-import ConfirmDeleteModal from '../components/ui/ConfirmDeleteModal'
+import React, { useMemo, useState } from "react";
+import { Plus, Users } from "lucide-react";
+import { deleteDoc, doc } from "firebase/firestore";
+
+import PageHeader from "../components/ui/PageHeader";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import Skeleton from "../components/ui/Skeleton";
+import ConfirmDeleteModal from "../components/ui/ConfirmDeleteModal";
+
+import useEmployees from "../hooks/useEmployee";
+import { useProjects } from "../hooks/useProjects";
+import { db } from "../services/firebase";
+import { removeUserFromAllProjects } from "../services/employee.service";
+
+import EmployeeCard from "../features/employees/components/EmployeeCard";
+import AddUserModal from "../features/employees/AddUserModal";
 
 const Employees = () => {
+  const [isUserModalOpen, setUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-    const [isUserModalOpen, setUserModalOpen] = useState(false)
-    const [editingUser, setEditingUser] = useState(null)
+  const { projects } = useProjects();
+  const { employees, loading } = useEmployees();
 
-    const { projects } = useProjects();
+  const projectsNameMap = useMemo(() => {
+    if (!projects?.length) return {};
+    return projects.reduce((m, p) => ({ ...m, [p.id]: p.name }), {});
+  }, [projects]);
 
-    const { employees, loading, loading: projectsLoading } = useEmployees();
+  const userIdToNameMap = useMemo(
+    () => employees.reduce((m, e) => ({ ...m, [e.id]: e.name }), {}),
+    [employees]
+  );
 
-    const [userToDelete, setUserToDelete] = useState(null)
-    const [deleteLoading, setDeleteLoading] = useState(false)
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setUserModalOpen(true);
+  };
 
-
-    // get all projects names from project id Globally and pass it as props 
-    const projectsNameMap = useMemo(() => {
-        if (!projects || projects.length === 0) return {};
-
-        const map = {};
-        projects.forEach((project) => {
-            map[project.id] = project.name; // or project.projectName if that's your field
-        });
-
-        return map;
-    }, [projects]);
-
-
-
-    const handleEditUser = (user) => {
-        setEditingUser(user)
-        setUserModalOpen(true)
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      setDeleteLoading(true);
+      // Strip references from every project before deleting the user
+      // so we don't leave orphaned IDs in memberIds / managerIds.
+      await removeUserFromAllProjects(userToDelete.id);
+      await deleteDoc(doc(db, "users", userToDelete.id));
+      setUserToDelete(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeleteLoading(false);
     }
+  };
 
-    const handleDeleteUserRequest = (user) => {
-        setUserToDelete(user) // opens modal
-    }
+  const onAddNew = () => {
+    setEditingUser(null);
+    setUserModalOpen(true);
+  };
 
-    const handleConfirmDeleteUser = async () => {
-        if (!userToDelete) return
-
-        try {
-            setDeleteLoading(true)
-            await deleteDoc(doc(db, "users", userToDelete.id))
-            setUserToDelete(null)
-        } catch (err) {
-            console.error(err)
-        } finally {
-            setDeleteLoading(false)
+  return (
+    <div className="flex flex-col gap-xl">
+      <PageHeader
+        title="Team"
+        description="Everyone in your workspace — roles, assignments, and contact details at a glance."
+        actions={
+          <Button leadingIcon={Plus} onClick={onAddNew}>
+            Invite member
+          </Button>
         }
-    }
+      />
 
-    const userIdToNameMap = useMemo(() => {
-        const map = {}
-        employees.forEach(user => {
-            map[user.id] = user.name
-        })
-        return map
-    }, [employees])
-    return (
-        <>
-            {/* Employee cards */}
-            <div className="employee-section border rounded-sm mt-md">
-                <div className="section-header flex items-center justify-between shadow-card p-md py-md">
-                    <h2 className="text-text-primary text-page font-medium">Employees</h2>
-                    <Button type="button" onClick={() => { setUserModalOpen(true); setEditingUser(null) }} className="flex items-center justify-center g-xs w-max px-sm"><BiPlus />Add New</Button>
-                </div>
-
-                <div className="section-body project-listing grid grid-cols-3 gap-lg p-md">
-                    {loading ? (
-                        <p className="col-span-3 text-center py-8 text-text-secondary">
-                            Loading employees...
-                        </p>
-                    ) : employees.length > 0 ? (
-                        <EmployeeCard employees={employees} userIdToNameMap={userIdToNameMap} projectsLoading={projectsLoading} projectsMap={projectsNameMap} onEditUser={handleEditUser} onDeleteUser={handleDeleteUserRequest} />
-                    ) : (
-                        <p className="text-gray-500 col-span-3 text-center py-8">
-                            No employees found. Add your first employee!
-                        </p>
-                    )}
-                </div>
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-md">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="bg-surface border border-line rounded-lg p-lg flex items-center gap-md"
+            >
+              <Skeleton className="h-12 w-12 rounded-full" />
+              <div className="flex-1 flex flex-col gap-xs">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
             </div>
+          ))}
+        </div>
+      ) : employees.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No team members yet"
+          description="Invite your first teammate to start assigning work and collaborating."
+          action={
+            <Button leadingIcon={Plus} onClick={onAddNew}>
+              Invite a teammate
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-md">
+          <EmployeeCard
+            employees={employees}
+            userIdToNameMap={userIdToNameMap}
+            projectsLoading={loading}
+            projectsMap={projectsNameMap}
+            onEditUser={handleEditUser}
+            onDeleteUser={setUserToDelete}
+          />
+        </div>
+      )}
 
-            <AddUserModal isOpen={isUserModalOpen} user={editingUser} onClose={() => { setUserModalOpen(false); setEditingUser(null) }} />
+      <AddUserModal
+        isOpen={isUserModalOpen}
+        user={editingUser}
+        onClose={() => {
+          setUserModalOpen(false);
+          setEditingUser(null);
+        }}
+      />
 
-            <ConfirmDeleteModal
-                isOpen={!!userToDelete}
-                onClose={() => setUserToDelete(null)}
-                onConfirm={handleConfirmDeleteUser}
-                loading={deleteLoading}
-                title="Delete User"
-                description={
-                    userToDelete
-                        ? `Are you sure you want to delete ${userToDelete.name}?\n(This action cannot be undone)`
-                        : ""
-                }
-            />
-        </>
-    )
-}
+      <ConfirmDeleteModal
+        isOpen={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        onConfirm={handleConfirmDeleteUser}
+        loading={deleteLoading}
+        title="Remove team member"
+        description={
+          userToDelete
+            ? `Remove ${userToDelete.name} from the workspace? They'll lose access immediately. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Remove"
+      />
+    </div>
+  );
+};
 
-export default Employees
+export default Employees;

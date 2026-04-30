@@ -1,39 +1,32 @@
-import React from 'react'
-import { useState } from "react";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import React, { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import Input from "./Input";
 
-
-const PasswordInput = ({ label, id, ...props }) => {
+const PasswordInput = React.forwardRef(({ label, id, ...props }, ref) => {
   const [show, setShow] = useState(false);
 
   return (
-    <div className="mb-lg">
-      <label
-        htmlFor={id}
-        className="text-text-secondary text-label block mb-xs"
-      >
-        {label}
-      </label>
-
-      <div className="relative">
-        <input
-          id={id}
-          {...props}
-          type={show ? "text" : "password"}
-          className="w-full h-10 rounded-md border border-border px-3 pr-10 text-body focus:border-accent focus:ring-2 focus:ring-accent-soft outline-none"
-        />
-
+    <Input
+      ref={ref}
+      label={label}
+      id={id}
+      type={show ? "text" : "password"}
+      trailingSlot={
         <button
           type="button"
-          onClick={() => setShow(!show)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition cursor-pointer z-10"
+          onClick={() => setShow((s) => !s)}
           aria-label={show ? "Hide password" : "Show password"}
+          tabIndex={-1}
+          className="text-fg-subtle hover:text-fg transition-colors duration-fast pointer-events-auto"
         >
-          {show ? <FiEyeOff /> : <FiEye />}
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
-      </div>
-    </div>
-  )
-}
+      }
+      {...props}
+    />
+  );
+});
 
-export default PasswordInput
+PasswordInput.displayName = "PasswordInput";
+
+export default PasswordInput;

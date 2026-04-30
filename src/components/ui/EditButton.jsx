@@ -1,12 +1,16 @@
-import React from 'react'
-import { BiPencil } from "react-icons/bi";
+import React from "react";
+import { Pencil } from "lucide-react";
+import IconButton from "./IconButton";
 
-const EditButton = ({ onClick }) => {
-  return (
-    <button onClick={onClick} className='edit-button bg-blue-300 w-max p-2 rounded-md text-blue-950'>
-        <BiPencil />
-    </button>
-  )
-}
+const EditButton = ({ onClick, ...rest }) => (
+  <IconButton
+    icon={Pencil}
+    onClick={onClick}
+    variant="ghost"
+    size="sm"
+    aria-label="Edit"
+    {...rest}
+  />
+);
 
-export default EditButton
+export default EditButton;

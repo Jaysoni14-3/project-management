@@ -1,41 +1,89 @@
-import React, { useEffect } from 'react'
-import { BiX } from "react-icons/bi";
+import React, { useEffect } from "react";
+import { X } from "lucide-react";
+import IconButton from "./IconButton";
 
-const Modal = ({ isOpen, onClose, title, children }) => {
+const sizeMap = {
+  sm: "max-w-narrow",
+  md: "max-w-prose",
+  lg: "max-w-[720px]",
+  xl: "max-w-[920px]",
+};
 
-    // Prevents body from scrolling when modal is Opened
-    useEffect(() => {
-        if (isOpen) {
-          document.body.style.overflow = "hidden";
-        } else {
-          document.body.style.overflow = "";
-        }
-        return () => {
-          document.body.style.overflow = "";
-        };
-      }, [isOpen]);
-      
+const Modal = ({
+  isOpen,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  size = "md",
+  closeOnBackdrop = true,
+}) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [isOpen, onClose]);
 
-    if (!isOpen) return null
-    return (
-        <>
-            {/* BACKDROP */}
-            <div className="backdrop fixed inset-0 bg-black/40 z-40" onClick={onClose}></div>
+  if (!isOpen) return null;
 
-            {/* MODAL */}
-            <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                <div className="w-full max-w-lg bg-white rounded-xl shadow-modal" onClick={(e) => e.stopPropagation()}>
-                    {/* header */}
-                    <div className="flex items-center justify-between p-4 border-b">
-                        <h2 className="text-lg font-semibold">{title}</h2>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600"> <BiX /> </button>
-                    </div>
-                    {/* Content */}
-                    <div className="p-4">{children}</div>
-                </div>  
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={typeof title === "string" ? title : undefined}
+      className="fixed inset-0 z-modal flex items-center justify-center px-lg"
+    >
+      {/* Backdrop */}
+      <div
+        onClick={closeOnBackdrop ? onClose : undefined}
+        className="absolute inset-0 bg-overlay/50 backdrop-blur-[2px] animate-fade-in"
+      />
+
+      {/* Sheet */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={`relative w-full ${sizeMap[size]} bg-elevated rounded-xl shadow-modal
+          border border-line animate-scale-in`}
+      >
+        {(title || onClose) && (
+          <div className="flex items-start justify-between gap-lg px-xl pt-lg pb-md border-b border-line-subtle">
+            <div className="flex flex-col gap-xs min-w-0">
+              {title && (
+                <h2 className="text-section text-fg truncate">{title}</h2>
+              )}
+              {description && (
+                <p className="text-bodySm text-fg-muted">{description}</p>
+              )}
             </div>
-        </>
-    )
-}
+            <IconButton
+              icon={X}
+              size="sm"
+              variant="ghost"
+              onClick={onClose}
+              aria-label="Close dialog"
+              className="-mr-xs -mt-xs"
+            />
+          </div>
+        )}
 
-export default Modal
+        <div className="px-xl py-lg">{children}</div>
+
+        {footer && (
+          <div className="flex justify-end gap-sm px-xl py-md border-t border-line-subtle bg-canvas/50 rounded-b-xl">
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Modal;

@@ -1,116 +1,184 @@
-import { BiEnvelope, BiLogoWhatsapp, BiPhoneOutgoing } from "react-icons/bi";
+import React from "react";
 import { Link } from "react-router-dom";
+import { Mail, Phone, MessageCircle } from "lucide-react";
+
 import EditButton from "../../../components/ui/EditButton";
 import DeleteButton from "../../../components/ui/DeleteButton";
 import { auth } from "../../../services/firebase";
 
+const roleToken = {
+  admin:    "bg-error-50 text-error-700 border-error-200",
+  manager:  "bg-accent-soft text-accent border-accent-200",
+  hr:       "bg-warning-50 text-warning-700 border-warning-200",
+  employee: "bg-subtle text-fg-muted border-line",
+};
 
-const EmployeeCard = ({ employees, onEditUser, userIdToNameMap, onDeleteUser, projectsLoading }) => {
-    return (
-        <>
-            {employees.map((emp) => (
-                <div
-                    key={emp.id}
-                    className=" employee-card group relative border rounded-sm shadow-card bg-white flex flex-col gap-sm hover:shadow-md transition"
-                >
-                    {/* Avatar */}
-                    <div className="flex flex-col items-center justify-center">
-                        <div className="avatar h-40 w-full overflow-hidden rounded-tr-sm rounded-tl-sm bg-primary text-accent-hover bg-blue-50 flex items-center justify-center font-semibold">
-                            {emp.avatar ? <img src={`/images/${emp.avatar}`} alt={emp.name} className="w-full h-full object-contain" /> : emp.name.charAt(0)}
-                        </div>
-                    </div>
+const formatJoined = (raw) => {
+  if (!raw) return "—";
+  try {
+    return new Date(raw).toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+};
 
-                    <div className="pill absolute top-2 right-2">
-                        {/* Only show MANAGER AND ADMIN pill */}
-                        {emp.role == "manager" &&
-                            <span className={`text-xs px-2 py-1 rounded-full capitalize bg-blue-100 text-blue-900`}>{emp.role}</span>
-                        }
+const initials = (name) =>
+  (name || "?")
+    .split(" ")
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
-                        {emp.role == "admin" &&
-                            <span className={`text-xs px-2 py-1 rounded-full capitalize bg-red-100 text-red-900`}>{emp.role}</span>
-                        }
-                    </div>
+const ContactLink = ({ to, label, icon: Icon }) => (
+  <Link
+    to={to}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label={label}
+    onClick={(e) => e.stopPropagation()}
+    className="inline-flex items-center justify-center h-7 w-7 rounded-md
+      text-fg-muted hover:text-accent hover:bg-accent-soft
+      transition-colors duration-fast"
+  >
+    <Icon className="h-3.5 w-3.5" />
+  </Link>
+);
 
-                    <div className="text-sm text-text-secondary flex flex-col items-start gap-2 px-3">
-                        {/* Employee name and manager name */}
-                        <div className="employee-name w-full flex justify-center items-center gap-sm">
-                            <div className="username">
-                                <h3 className="text-lg text-text-primary text-center font-medium capitalize">
-                                    {emp.name}
-                                </h3>
-                                <p className="text-sm text-gray-400 text-center capitalize">{emp.designation}</p>
-                            </div>
-                        </div>
+const EmployeeCard = ({
+  employees,
+  onEditUser,
+  userIdToNameMap,
+  onDeleteUser,
+  projectsLoading,
+}) => {
+  return (
+    <>
+      {employees.map((emp) => {
+        const role = (emp.role || "employee").toLowerCase();
+        const isSelf = emp.id === auth.currentUser?.uid;
 
-                        <div className="manager-name">
-                            <p className="text-sm text-gray-400 capitalize">
-                                {/* Manager: <span className="text-gray-700">{emp.managerID}</span> */}
-                                Manager:{" "}
-                                <span className="text-gray-700">
-                                    {emp.managerID
-                                        ? userIdToNameMap[emp.managerID] || "—"
-                                        : "—"}
-                                </span>
-                            </p>
-                        </div>
-                        <div className="projects">
-                            <p className="text-sm text-gray-400 capitalize">
-                                Projects: <span className="text-gray-700">
-                                    {projectsLoading
-                                        ? "Loading projects..."
-                                        : emp.assignedProjects?.length > 0
-                                            ? emp.assignedProjects
-                                                .map((project) => project.name)
-                                                .join(", ")
-                                            : "No projects assigned"}
-                                </span>
-                            </p>
-                        </div>
-                    </div>
+        return (
+          <article
+            key={emp.id}
+            className="group relative bg-surface border border-line rounded-lg p-lg
+              transition-[border-color,box-shadow] duration-fast
+              hover:border-line-strong hover:shadow-md
+              flex flex-col gap-md"
+          >
+            {/* Hover actions */}
+            <div className="absolute top-md right-md flex items-center gap-xs
+              opacity-0 group-hover:opacity-100 transition-opacity duration-fast">
+              {!isSelf && (
+                <EditButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditUser(emp);
+                  }}
+                />
+              )}
+              <DeleteButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteUser(emp);
+                }}
+              />
+            </div>
 
-                    {/* Footer */}
-                    <div className="flex items-center justify-between mt-sm px-3 pb-3">
-
-                        <div className="contact-details flex gap-sm">
-                            <Link target="_blank" rel="noopener noreferrer" to={`mailto:${emp.email}`} className="mail flex items-center rounded-full p-2 bg-red-100">
-                                <BiEnvelope />
-                            </Link>
-                            <Link target="_blank" rel="noopener noreferrer" to={`https://wa.me/${emp.whatsapp}`} className="whatsapp flex items-center rounded-full p-2 bg-green-100">
-                                <BiLogoWhatsapp />
-                            </Link>
-                            <Link target="_blank" rel="noopener noreferrer" to={`tel:${emp.phoneNumber}`} className="call flex items-center rounded-full p-2 bg-blue-100">
-                                <BiPhoneOutgoing />
-                            </Link>
-                        </div>
-
-                        <span className="text-xs text-text-secondary">
-                            Joined: {emp.joinedDate
-                                ? new Date(emp.joinedDate).toLocaleDateString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                })
-                                : "-"}
-                        </span>
-                    </div>
-                    <div className="action-buttons absolute top-2 right-2 z-20 rounded-md bg-white p-2 gap-2 flex opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200">
-                        {emp.id !== auth.currentUser.uid && (
-                            <EditButton onClick={(e) => {
-                                e.stopPropagation();
-                                onEditUser(emp)
-                            }} />
-                        )}
-                        <DeleteButton onClick={(e) => {
-                            e.stopPropagation()
-                            onDeleteUser(emp)
-                        }} />
-                    </div>
-
+            {/* Header: avatar + name */}
+            <header className="flex items-start gap-md pr-xl">
+              <div className="h-12 w-12 shrink-0 rounded-full bg-accent-soft text-accent flex items-center justify-center font-semibold overflow-hidden">
+                {emp.avatar ? (
+                  <img
+                    src={`/images/${emp.avatar}`}
+                    alt={emp.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  initials(emp.name)
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-sm flex-wrap">
+                  <h3 className="text-section text-fg truncate capitalize">
+                    {emp.name}
+                  </h3>
+                  <span
+                    className={`text-caption font-medium px-sm py-[1px] rounded-xs border capitalize ${
+                      roleToken[role] ?? roleToken.employee
+                    }`}
+                  >
+                    {role}
+                  </span>
                 </div>
-            ))}
+                {emp.designation && (
+                  <p className="text-bodySm text-fg-muted capitalize truncate">
+                    {emp.designation}
+                  </p>
+                )}
+              </div>
+            </header>
 
-        </>
-    );
+            {/* Meta */}
+            <div className="flex flex-col gap-xs">
+              <p className="text-caption text-fg-subtle">
+                Manager:{" "}
+                <span className="text-fg-muted capitalize">
+                  {emp.managerID ? userIdToNameMap[emp.managerID] || "—" : "—"}
+                </span>
+              </p>
+              <p className="text-caption text-fg-subtle">
+                Projects:{" "}
+                <span className="text-fg-muted">
+                  {projectsLoading
+                    ? "Loading…"
+                    : emp.assignedProjects?.length > 0
+                    ? emp.assignedProjects.map((p) => p.name).join(", ")
+                    : "None assigned"}
+                </span>
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-md mt-auto border-t border-line-subtle">
+              <div className="flex items-center gap-xs">
+                {emp.email && (
+                  <ContactLink
+                    to={`mailto:${emp.email}`}
+                    label="Email"
+                    icon={Mail}
+                  />
+                )}
+                {emp.whatsapp && (
+                  <ContactLink
+                    to={`https://wa.me/${emp.whatsapp}`}
+                    label="WhatsApp"
+                    icon={MessageCircle}
+                  />
+                )}
+                {emp.phoneNumber && (
+                  <ContactLink
+                    to={`tel:${emp.phoneNumber}`}
+                    label="Call"
+                    icon={Phone}
+                  />
+                )}
+              </div>
+
+              <span className="text-caption text-fg-subtle">
+                Joined {formatJoined(emp.joinedDate)}
+              </span>
+            </div>
+          </article>
+        );
+      })}
+    </>
+  );
 };
 
 export default EmployeeCard;

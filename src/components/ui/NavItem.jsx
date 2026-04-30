@@ -1,19 +1,49 @@
-import React from 'react'
-import { NavLink } from 'react-router-dom'
+import React from "react";
+import { NavLink } from "react-router-dom";
 
-const NavItem = ({ to, label, icon: Icon}) => {
+/**
+ * Sidebar nav row, Linear-style on a brand-blue surface.
+ * Active: subtle white-glass fill + crisp white left bar + light-blue icon.
+ * Inactive: low-contrast text, hover lifts to high contrast.
+ */
+const NavItem = ({ to, label, icon: Icon, end = false, indent = false }) => {
   return (
-    <NavLink to={to}  className={({ isActive }) =>
-        `flex gap-sm items-center px-md py-sm rounded-sm text-body transition ${
-          isActive
-            ? "bg-accent-hover text-white font-medium shadow-card"
-            : "text-gray-200 hover:bg-accent-hover hover:text-white hover:shadow-card"
-        }`
-      }>
-         {Icon && <Icon />}
-        {label}
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        `group relative flex items-center gap-sm rounded-sm
+         px-md py-[6px] text-body select-none
+         transition-[background-color,color] duration-fast
+         ${indent ? "pl-lg" : ""}
+         ${
+           isActive
+             ? "bg-white/[0.10] text-white font-medium"
+             : "text-white/65 hover:bg-white/[0.06] hover:text-white"
+         }`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {/* Active accent bar */}
+          <span
+            aria-hidden
+            className={`absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-r-full
+              transition-opacity duration-fast
+              ${isActive ? "bg-white opacity-100" : "opacity-0"}`}
+          />
+          {Icon && (
+            <Icon
+              className={`h-4 w-4 shrink-0 transition-colors duration-fast
+                ${isActive ? "text-accent-200" : "text-white/55 group-hover:text-white/85"}`}
+              aria-hidden
+            />
+          )}
+          <span className="truncate">{label}</span>
+        </>
+      )}
     </NavLink>
-  )
-}
+  );
+};
 
-export default NavItem
+export default NavItem;

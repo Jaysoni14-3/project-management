@@ -1,41 +1,29 @@
-import React from 'react'
-import { Bounce, ToastContainer } from 'react-toastify';
-import { Link } from 'react-router-dom'
-import AuthCard from '../components/ui/AuthCard';
+import React from "react";
+import { Link } from "react-router-dom";
 
-import UserForm from '../components/forms/UserRegisterForm';
+import AuthCard from "../components/ui/AuthCard";
+import UserForm from "../components/forms/UserRegisterForm";
 
 const Register = () => {
   return (
-    <>
-      <div className='max-w-[500px] w-full'>
-        <AuthCard title="Register your Account">
-          <UserForm submitLabel="Register" />
-        </AuthCard>
-
-        <p className="text-text-secondary text-body text-center mt-md">
+    <AuthCard
+      title="Create your account"
+      subtitle="Set up your workspace in under a minute"
+      footer={
+        <>
           Already have an account?{" "}
           <Link
             to="/login"
-            className="text-accent hover:text-accent-hover"
+            className="text-accent hover:text-accent-hover font-medium transition-colors duration-fast"
           >
-            Login
+            Sign in
           </Link>
-        </p>
-        <ToastContainer position="top-right"
-          autoClose={5000}
-          hideProgressBar={true}
-          newestOnTop={false}
-          closeOnClick={false}
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          transition={Bounce}
-        />
-      </div>
-    </>
-  )
-}
+        </>
+      }
+    >
+      <UserForm submitLabel="Create account" />
+    </AuthCard>
+  );
+};
 
-export default Register
+export default Register;
