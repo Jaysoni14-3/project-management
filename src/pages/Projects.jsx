@@ -7,12 +7,14 @@ import EmptyState from "../components/ui/EmptyState";
 import Skeleton from "../components/ui/Skeleton";
 
 import { useProjects } from "../hooks/useProjects";
+import useBugCounts from "../hooks/useBugCounts";
 import ProjectFormModal from "../features/projects/ProjectFormModal";
 import ProjectCard from "../features/projects/components/ProjectCard";
 
 const Projects = () => {
   const [isProjectModalOpen, setProjectModalOpen] = useState(false);
   const { projects, loading } = useProjects();
+  const { countsByProjectId } = useBugCounts();
 
   // Project name lookup (kept in case child cards want it)
   // eslint-disable-next-line no-unused-vars
@@ -66,7 +68,10 @@ const Projects = () => {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-md">
-          <ProjectCard projects={projects} />
+          <ProjectCard
+            projects={projects}
+            bugCountsByProjectId={countsByProjectId}
+          />
         </div>
       )}
 

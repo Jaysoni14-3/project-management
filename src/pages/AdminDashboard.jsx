@@ -21,7 +21,11 @@ import useDashboardStats from "../hooks/useDashboardStats";
 import { useProjects } from "../hooks/useProjects";
 import useEmployees from "../hooks/useEmployee";
 import useRecentMeetingNotes from "../hooks/useRecentMeetingNotes";
+import useRecentBugs from "../hooks/useRecentBugs";
+import useBugCounts from "../hooks/useBugCounts";
 import { useAuth } from "../context/AuthContext";
+
+import RecentBugsPanel from "../features/bugs/components/RecentBugsPanel";
 
 /* ============================================================
    Helpers
@@ -696,6 +700,8 @@ const AdminDashboard = () => {
   const { projects, loading: projectsLoading } = useProjects();
   const { employees, loading: employeesLoading } = useEmployees();
   const { notes: recentNotes, loading: notesLoading, error: notesError } = useRecentMeetingNotes(6);
+  const { bugs: recentBugs, loading: bugsLoading, error: bugsError } = useRecentBugs(6);
+  const { totalOpen: openBugCount, loading: bugCountsLoading } = useBugCounts();
 
   return (
     <div className="flex flex-col gap-xl">
@@ -716,7 +722,11 @@ const AdminDashboard = () => {
         }
       />
 
-      <StatsRow {...stats} />
+      <StatsRow
+        {...stats}
+        bugs={openBugCount}
+        statsLoading={stats.statsLoading || bugCountsLoading}
+      />
 
       {/* Row: pipeline + team */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
@@ -738,18 +748,26 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Row: recent projects + recent meeting notes */}
+      {/* Row: recent projects (full width) */}
+      <RecentProjectsPanel projects={projects} loading={projectsLoading} />
+
+      {/* Row: recent meeting notes + recent bugs */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
-        <div className="lg:col-span-7">
-          <RecentProjectsPanel projects={projects} loading={projectsLoading} />
-        </div>
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-6">
           <RecentMeetingNotesPanel
             notes={recentNotes}
             loading={notesLoading}
             error={notesError}
             projects={projects}
             employees={employees}
+          />
+        </div>
+        <div className="lg:col-span-6">
+          <RecentBugsPanel
+            bugs={recentBugs}
+            loading={bugsLoading}
+            error={bugsError}
+            projects={projects}
           />
         </div>
       </div>

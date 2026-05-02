@@ -26,7 +26,7 @@ const Meta = ({ icon: Icon, label, value }) => (
   </div>
 );
 
-const ProjectCard = ({ projects }) => {
+const ProjectCard = ({ projects, bugCountsByProjectId = {} }) => {
   const { managers } = useManagers();
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectToDelete, setProjectToDelete] = useState(null);
@@ -68,6 +68,7 @@ const ProjectCard = ({ projects }) => {
               .join(", ")
           : "Unassigned";
         const memberCount = project.memberIds?.length ?? 0;
+        const openBugCount = bugCountsByProjectId[project.id] ?? 0;
 
         return (
           <article
@@ -129,24 +130,16 @@ const ProjectCard = ({ projects }) => {
                     : `${memberCount} member${memberCount === 1 ? "" : "s"}`
                 }
               />
-              {(project.meetingNotes || project.activeBugs != null) && (
-                <div className="flex items-center gap-lg flex-wrap">
-                  {project.meetingNotes && (
-                    <Meta
-                      icon={FileText}
-                      label="Notes"
-                      value={project.meetingNotes}
-                    />
-                  )}
-                  {project.activeBugs != null && (
-                    <Meta
-                      icon={Bug}
-                      label="Bugs"
-                      value={project.activeBugs}
-                    />
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-lg flex-wrap">
+                {project.meetingNotes && (
+                  <Meta
+                    icon={FileText}
+                    label="Notes"
+                    value={project.meetingNotes}
+                  />
+                )}
+                <Meta icon={Bug} label="Open bugs" value={openBugCount} />
+              </div>
             </div>
 
             {/* Phase progress */}

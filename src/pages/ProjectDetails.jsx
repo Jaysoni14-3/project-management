@@ -25,10 +25,13 @@ import ProjectPhaseBar from "../features/projects/components/ProjectPhaseBar";
 import ProjectFormModal from "../features/projects/ProjectFormModal";
 import MeetingNoteFormModal from "../features/meetingNotes/MeetingNoteFormModal";
 import MeetingNoteCard from "../features/meetingNotes/MeetingNoteCard";
+import BugFormModal from "../features/bugs/BugFormModal";
+import BugBoard from "../features/bugs/BugBoard";
 
 import useProject from "../hooks/useProject";
 import useEmployees from "../hooks/useEmployee";
 import useMeetingNotes from "../hooks/useMeetingNotes";
+import useBugs from "../hooks/useBugs";
 import { useAuth } from "../context/AuthContext";
 import { patchProject, deleteProject } from "../services/project.service";
 import { deleteMeetingNote } from "../services/meetingNotes.service";
@@ -194,6 +197,7 @@ const ProjectDetails = () => {
   const { project, loading, error } = useProject(projectId);
   const { employees, loading: employeesLoading } = useEmployees();
   const { notes: meetingNotes, loading: notesLoading } = useMeetingNotes(projectId);
+  const { bugs, loading: bugsLoading } = useBugs(projectId);
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -204,6 +208,11 @@ const ProjectDetails = () => {
   const [editingNote, setEditingNote] = useState(null);
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [deletingNote, setDeletingNote] = useState(false);
+
+  // Bugs module state
+  const [bugFormOpen, setBugFormOpen] = useState(false);
+  const [editingBug, setEditingBug] = useState(null);
+  const [bugDefaultStatus, setBugDefaultStatus] = useState("backlog");
 
   // Resolve member/manager IDs to user objects (memoized)
   const employeeMap = useMemo(() => {
@@ -250,6 +259,17 @@ const ProjectDetails = () => {
   const handleAddNote = () => {
     setEditingNote(null);
     setNoteFormOpen(true);
+  };
+
+  const handleAddBug = (status = "backlog") => {
+    setEditingBug(null);
+    setBugDefaultStatus(status);
+    setBugFormOpen(true);
+  };
+
+  const handleEditBug = (bug) => {
+    setEditingBug(bug);
+    setBugFormOpen(true);
   };
 
   const handleEditNote = (note) => {
@@ -354,7 +374,7 @@ const ProjectDetails = () => {
   const phase = (project.currentPhase || "pitch").toLowerCase();
   const memberCount = project.memberIds?.length ?? 0;
   const managerCount = project.managerIds?.length ?? 0;
-  const bugCount = project.activeBugs ?? 0;
+  const bugCount = bugs.filter((b) => b.status !== "done").length;
 
   return (
     <div className="flex flex-col gap-xl">
@@ -439,6 +459,64 @@ const ProjectDetails = () => {
       <Card padded={false}>
         <div className="px-xl py-lg">
           <ProjectPhaseBar currentPhase={phase} />
+        </div>
+      </Card>
+
+      {/* ---------- Bug board (full width) ---------- */}
+      <Card
+        padded={false}
+        header={
+          <>
+            <div>
+              <h2 className="text-section text-fg">Bugs</h2>
+              <p className="text-caption text-fg-subtle mt-[2px]">
+                {bugsLoading
+                  ? "Loading…"
+                  : bugs.length === 0
+                  ? "Track defects from report to fix"
+                  : `${bugs.length} ${bugs.length === 1 ? "bug" : "bugs"} on the board`}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              leadingIcon={Plus}
+              onClick={() => handleAddBug("backlog")}
+            >
+              Add bug
+            </Button>
+          </>
+        }
+      >
+        <div className="px-md py-md min-w-0">
+          {bugsLoading ? (
+            <div className="flex gap-md overflow-x-auto">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-64 w-[300px] rounded-lg shrink-0" />
+              ))}
+            </div>
+          ) : bugs.length === 0 ? (
+            <div className="py-md">
+              <EmptyState
+                icon={Bug}
+                title="No bugs filed yet"
+                description="Capture defects with severity, priority, and screenshots so they can be triaged on the board."
+                action={
+                  <Button leadingIcon={Plus} onClick={() => handleAddBug("backlog")}>
+                    File the first bug
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <BugBoard
+              projectId={project.id}
+              bugs={bugs}
+              members={memberUsers}
+              onAddBug={handleAddBug}
+              onEditBug={handleEditBug}
+            />
+          )}
         </div>
       </Card>
 
@@ -757,6 +835,18 @@ const ProjectDetails = () => {
         projectId={project.id}
         members={memberUsers}
         note={editingNote}
+      />
+
+      <BugFormModal
+        isOpen={bugFormOpen}
+        onClose={() => {
+          setBugFormOpen(false);
+          setEditingBug(null);
+        }}
+        projectId={project.id}
+        members={memberUsers}
+        bug={editingBug}
+        defaultStatus={bugDefaultStatus}
       />
       <ConfirmDeleteModal
         isOpen={!!noteToDelete}

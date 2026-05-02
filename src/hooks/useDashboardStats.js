@@ -8,7 +8,6 @@ const useDashboardStats = () => {
     activeProjectCount: 0,
     completedProjectCount: 0,
     statsLoading: true,
-    bugs: 0,
   });
 
   useEffect(() => {
@@ -49,7 +48,6 @@ const useDashboardStats = () => {
             activeProjectCount: activeSnap.data().count,
             completedProjectCount: completedSnap.data().count,
             statsLoading: false,
-            bugs: 17,
           });
         
       } catch (error) {

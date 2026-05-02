@@ -8,7 +8,7 @@ export default function DashboardLayout() {
     <div className="min-h-screen bg-bg">
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 mx-auto px-xl py-xl">
+        <main className="flex-1 min-w-0 px-xl py-xl">
           <Outlet />
         </main>
       </div>

@@ -74,7 +74,6 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
   const [clientName, setClientName] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("active");
-  const [activeBugs, setActiveBugs] = useState(0);
   const [currentPhase, setCurrentPhase] = useState("pitch");
 
   // Selects
@@ -109,7 +108,6 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
     setClientName(project.clientName || "");
     setDescription(project.description || "");
     setStatus(project.status || "active");
-    setActiveBugs(project.activeBugs ?? 0);
     setCurrentPhase(project.currentPhase || "pitch");
   }, [project]);
 
@@ -165,7 +163,6 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
     setClientName("");
     setDescription("");
     setStatus("active");
-    setActiveBugs(0);
     setCurrentPhase("pitch");
     setSelectedManagers([]);
     setSelectedEmployees([]);
@@ -197,7 +194,6 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
       clientName,
       managerIds,
       memberIds,
-      activeBugs,
       currentPhase,
     };
 
@@ -376,17 +372,6 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
           </div>
         </div>
 
-        <div className="flex flex-row gap-md">
-          <Input
-            label="Active bugs"
-            type="number"
-            min={0}
-            value={activeBugs}
-            onChange={(e) => setActiveBugs(Number(e.target.value) || 0)}
-            placeholder="0"
-            wrapperClassName="!w-1/3"
-          />
-        </div>
       </form>
     </Modal>
   );
