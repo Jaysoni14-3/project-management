@@ -14,6 +14,7 @@ import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import Skeleton from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/error/ErrorState";
 import StatCard from "../components/Dashboard/StatCard";
 
 import useAllBugs from "../hooks/useAllBugs";
@@ -517,30 +518,12 @@ const Bugs = () => {
         {/* List */}
         {error ? (
           <div className="px-lg py-lg">
-            <div
-              role="alert"
-              className="p-md rounded-md bg-error-50 border border-error-200 text-error-800 text-bodySm"
-            >
-              <p className="font-medium mb-xs">Couldn't load bugs</p>
-              <p className="text-bodySm">
-                {error.code || error.message || "Unknown error"}
-              </p>
-              {(error.code === "permission-denied" ||
-                /insufficient permissions/i.test(error.message || "")) && (
-                <p className="mt-xs text-caption text-error-700">
-                  Add this Firestore rule:{" "}
-                  <code className="font-mono">
-                    match /{"{path=**}"}/bugs/{"{bugId}"} {"{ allow read: if request.auth != null; }"}
-                  </code>
-                </p>
-              )}
-              {/failed.*precondition|requires an index/i.test(error.message || "") && (
-                <p className="mt-xs text-caption text-error-700">
-                  Firestore needs a collection-group index for this query — open the
-                  browser console; the error includes a direct link to create it.
-                </p>
-              )}
-            </div>
+            <ErrorState
+              error={error}
+              title="Couldn't load bugs"
+              onRetry={() => window.location.reload()}
+              compact
+            />
           </div>
         ) : loading ? (
           <ul className="divide-y divide-line-subtle">

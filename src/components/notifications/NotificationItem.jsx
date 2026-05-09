@@ -1,6 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { AtSign, Bug, FolderKanban, StickyNote } from "lucide-react";
+import {
+  AtSign,
+  Bug,
+  FolderKanban,
+  StickyNote,
+  Layers,
+  CheckCircle2,
+} from "lucide-react";
 
 import { projectPathFromName } from "../../lib/slug";
 
@@ -36,6 +43,23 @@ const KIND_META = {
       const base = projectPathFromName(p?.projectName, p?.projectId);
       return p?.noteId ? `${base}?note=${p.noteId}` : base;
     },
+  },
+  module_assigned: {
+    icon: Layers,
+    tone: "bg-accent-soft text-accent",
+    actionLabel: "View module",
+    /* Modules live on a dedicated page — link there with a query param
+       so the destination can pop the matching detail modal. The Modules
+       page picks up `?moduleId=…` and opens the view modal automatically. */
+    buildUrl: (p) =>
+      p?.moduleId ? `/modules?moduleId=${p.moduleId}` : "/modules",
+  },
+  module_completed: {
+    icon: CheckCircle2,
+    tone: "bg-success-50 text-success-700",
+    actionLabel: "View module",
+    buildUrl: (p) =>
+      p?.moduleId ? `/modules?moduleId=${p.moduleId}` : "/modules",
   },
   comment_mention: {
     icon: AtSign,

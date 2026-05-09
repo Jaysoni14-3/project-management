@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import Select from "react-select";
 import { toast } from "react-toastify";
 
 import { useAuth } from "../../context/AuthContext";
@@ -9,7 +8,7 @@ import useEmployees from "../../hooks/useEmployee";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
-import selectStyles from "../../components/ui/selectStyles";
+import AppSelect from "../../components/ui/AppSelect";
 
 const empToOption = (emp, currentUid) => ({
   value: emp.id,
@@ -31,6 +30,7 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
   // Selects
   const [selectedManagers, setSelectedManagers] = useState([]);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [selectedTesters, setSelectedTesters] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -90,18 +90,32 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
         })
         .filter(Boolean)
     );
+
+    setSelectedTesters(
+      (project.testerIds || [])
+        .map((id) => {
+          const m = employees.find((e) => e.id === id);
+          return m ? { value: m.id, label: m.name } : null;
+        })
+        .filter(Boolean)
+    );
     // intentionally only re-run on project change — see comment in body.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, employees.length]);
 
   /* ------------------------------------------------------------------
-     Cleanup managers when an employee is unselected. (A manager must
-     also be a member of the project.)
+     Cleanup managers/testers when an employee is unselected. (A manager
+     or tester must also be a member of the project.)
   ------------------------------------------------------------------ */
   useEffect(() => {
     setSelectedManagers((prev) =>
       prev.filter((m) =>
         selectedEmployees.some((e) => e.value === m.value)
+      )
+    );
+    setSelectedTesters((prev) =>
+      prev.filter((t) =>
+        selectedEmployees.some((e) => e.value === t.value)
       )
     );
   }, [selectedEmployees]);
@@ -118,6 +132,7 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
     setCurrentPhase("pitch");
     setSelectedManagers([]);
     setSelectedEmployees([]);
+    setSelectedTesters([]);
     setFormError("");
   }, [isOpen]);
 
@@ -138,6 +153,7 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
 
     const memberIds = selectedEmployees.map((e) => e.value);
     const managerIds = selectedManagers.map((m) => m.value);
+    const testerIds = selectedTesters.map((t) => t.value);
 
     const payload = {
       name: name.trim(),
@@ -146,6 +162,7 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
       clientName,
       managerIds,
       memberIds,
+      testerIds,
       currentPhase,
     };
 
@@ -252,15 +269,13 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
             <label className="text-fg-muted text-label mb-xs block">
               Team members ({selectedEmployees.length})
             </label>
-            <Select
+            <AppSelect
               isMulti
               options={employeeOptions}
               value={selectedEmployees}
               onChange={(opts) => setSelectedEmployees(opts || [])}
               isLoading={employeesLoading}
               placeholder="Assign team members…"
-              styles={selectStyles}
-              classNamePrefix="react-select"
             />
           </div>
 
@@ -268,7 +283,7 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
             <label className="text-fg-muted text-label mb-xs block">
               Project managers ({selectedManagers.length})
             </label>
-            <Select
+            <AppSelect
               isMulti
               options={managerOptions.filter((m) =>
                 selectedEmployees.some((e) => e.value === m.value)
@@ -277,8 +292,6 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
               onChange={(opts) => setSelectedManagers(opts || [])}
               isLoading={employeesLoading}
               placeholder="Promote a member to manager…"
-              styles={selectStyles}
-              classNamePrefix="react-select"
               noOptionsMessage={() =>
                 selectedEmployees.length === 0
                   ? "Add team members first"
@@ -286,6 +299,33 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
               }
             />
           </div>
+        </div>
+
+        <div className="mb-md">
+          <label className="text-fg-muted text-label mb-xs block">
+            Testers ({selectedTesters.length})
+          </label>
+          <AppSelect
+            isMulti
+            options={employeeOptions.filter(
+              (e) =>
+                selectedEmployees.some((m) => m.value === e.value) &&
+                !selectedManagers.some((m) => m.value === e.value)
+            )}
+            value={selectedTesters}
+            onChange={(opts) => setSelectedTesters(opts || [])}
+            isLoading={employeesLoading}
+            placeholder="Mark members as testers…"
+            noOptionsMessage={() =>
+              selectedEmployees.length === 0
+                ? "Add team members first"
+                : "All members are already managers"
+            }
+          />
+          <p className="text-caption text-fg-subtle mt-xs">
+            When a module is marked complete, a bug ticket is auto-assigned to
+            all testers on this project.
+          </p>
         </div>
 
         <div className="flex flex-row gap-md mb-md">

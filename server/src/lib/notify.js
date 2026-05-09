@@ -38,8 +38,43 @@ export const notifyProjectAssigned = async ({
   await safeCreateMany(rows);
 };
 
+/* Accepts either a single `assigneeId` (legacy single-assignee path) or
+   an array of `recipientIds` (module-bug multi-assignee path). The actor
+   is filtered out so users don't get notified about their own actions. */
 export const notifyBugAssigned = async ({
   bug,
+  project,
+  assigneeId,
+  recipientIds,
+  actorId,
+  actorName,
+}) => {
+  const targets = dedupe(
+    recipientIds && recipientIds.length ? recipientIds : [assigneeId]
+  ).filter((id) => id !== actorId);
+  if (!targets.length) return;
+  const rows = targets.map((rid) => ({
+    recipientId: rid,
+    kind: "bug_assigned",
+    title: `Bug assigned: ${bug.title || "Untitled"}`,
+    body: actorName
+      ? `${actorName} assigned this to you on ${project?.name || "a project"}.`
+      : null,
+    payload: {
+      bugId: bug.id,
+      bugTitle: bug.title,
+      projectId: bug.projectId,
+      projectName: project?.name ?? null,
+      moduleId: bug.moduleId ?? null,
+      actorId: actorId ?? null,
+      actorName: actorName ?? null,
+    },
+  }));
+  await safeCreateMany(rows);
+};
+
+export const notifyModuleAssigned = async ({
+  module,
   project,
   assigneeId,
   actorId,
@@ -49,21 +84,52 @@ export const notifyBugAssigned = async ({
   await safeCreateMany([
     {
       recipientId: assigneeId,
-      kind: "bug_assigned",
-      title: `Bug assigned: ${bug.title || "Untitled"}`,
+      kind: "module_assigned",
+      title: `Module assigned: ${module.title || "Untitled"}`,
       body: actorName
-        ? `${actorName} assigned this to you on ${project?.name || "a project"}.`
+        ? `${actorName} assigned this module to you on ${project?.name || "a project"}.`
         : null,
       payload: {
-        bugId: bug.id,
-        bugTitle: bug.title,
-        projectId: bug.projectId,
+        moduleId: module.id,
+        moduleTitle: module.title,
+        projectId: module.projectId,
         projectName: project?.name ?? null,
         actorId: actorId ?? null,
         actorName: actorName ?? null,
       },
     },
   ]);
+};
+
+/* Fires when a module flips to `completed`. Recipients are the project's
+   managers (ProjectMember.role === "manager"); the assignee who just
+   completed it is filtered out via the actor check. */
+export const notifyModuleCompleted = async ({
+  module,
+  project,
+  recipientIds,
+  actorId,
+  actorName,
+}) => {
+  const recipients = dedupe(recipientIds).filter((id) => id !== actorId);
+  if (!recipients.length) return;
+  const rows = recipients.map((rid) => ({
+    recipientId: rid,
+    kind: "module_completed",
+    title: `Module completed: ${module.title || "Untitled"}`,
+    body: actorName
+      ? `${actorName} marked this module complete on ${project?.name || "a project"}.`
+      : null,
+    payload: {
+      moduleId: module.id,
+      moduleTitle: module.title,
+      projectId: module.projectId,
+      projectName: project?.name ?? null,
+      actorId: actorId ?? null,
+      actorName: actorName ?? null,
+    },
+  }));
+  await safeCreateMany(rows);
 };
 
 export const notifyMeetingNoteAttendees = async ({

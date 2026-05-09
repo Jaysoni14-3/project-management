@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Internal project notes (private, not for the team repo)
+PROJECT_NOTES.md
+

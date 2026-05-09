@@ -8,11 +8,12 @@ export const createProjectSchema = z.object({
   currentPhase: z.string().optional(),
   memberIds: z.array(z.string()).optional(),
   managerIds: z.array(z.string()).optional(),
+  testerIds: z.array(z.string()).optional(),
 });
 
 export const updateProjectSchema = createProjectSchema.partial();
 
 export const memberSchema = z.object({
   userId: z.string(),
-  role: z.enum(["manager", "member"]).optional(),
+  role: z.enum(["manager", "member", "tester"]).optional(),
 });

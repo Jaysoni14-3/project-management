@@ -17,6 +17,45 @@
 
 export const CHANGELOG = [
   {
+    version: "2026.05.10.2",
+    date: "May 10, 2026",
+    title: "Modules, team chat, and tougher error handling",
+    summary:
+      "A big drop. We added a new way to track what's being built, brought real-time chat into the workspace, and tightened up how the app behaves when something goes wrong.",
+    highlights: [
+      {
+        title: "Modules — track what gets built, hand it off cleanly",
+        body:
+          "Create a module on any project, assign someone, and watch its history. When it's marked complete, a bug ticket auto-fires to your project's testers (or managers if no testers are assigned yet) so QA picks it up without anyone forgetting. Find your active modules on the dashboard, the full history on /modules, and a Modules section inside each project. New 'Tester' role on projects, with a QA badge in the team grid.",
+      },
+      {
+        title: "Real-time chat — DMs and project channels",
+        body:
+          "Click Chat in the sidebar. Start a 1-on-1 with anyone in the workspace, or jump into a project channel — every project gets one automatically, and members are kept in sync as the team changes. Messages deliver in real time over WebSockets. The right-side panel shows contact details for DMs (email, phone, WhatsApp, designation) and the member roster for channels (tap any member to start a DM).",
+      },
+      {
+        title: "Edit, delete, like, and 'Seen'",
+        body:
+          "Hover any of your messages and a chevron appears at the top-right with Edit and Delete. Every message gets a heart-icon like that anyone can toggle, with a count chip if there's more than zero. In DMs, you'll see a 'Seen' tag on your most recent message once the other person has read it.",
+      },
+      {
+        title: "WhatsApp-style chat search",
+        body:
+          "The search bar at the top of the chat list searches both conversation names and message content across every chat you're in. Click a hit to jump straight to that message, highlighted. Inside any chat, the magnifying glass in the header opens a search bar with up/down arrows and a 'n of m' counter to step through matches.",
+      },
+      {
+        title: "Better errors everywhere",
+        body:
+          "When something fails, you now see a specific message with an icon that matches the kind of failure (offline, timed out, server, permission, etc.) — not a vague 'Something went wrong'. Every error response carries a request id so you can quote it when something doesn't add up. Auto-redirect to login when your session expires. A small banner at the bottom of the screen shows up when you go offline and dismisses on reconnect.",
+      },
+      {
+        title: "Friendlier sign-in errors",
+        body:
+          "The login screen now tells you exactly what's wrong: 'Incorrect email or password' if you mistyped, 'Server is starting up' if the database is waking up, 'Can't reach the server' if you've lost connectivity. The request id is shown in monospace below the error so you can paste it into a bug report.",
+      },
+    ],
+  },
+  {
     version: "2026.05.10",
     date: "May 10, 2026",
     title: "Admin impersonation, charts, and mentions",

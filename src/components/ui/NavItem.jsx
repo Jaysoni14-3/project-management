@@ -6,7 +6,14 @@ import { NavLink } from "react-router-dom";
  * Active: subtle white-glass fill + crisp white left bar + light-blue icon.
  * Inactive: low-contrast text, hover lifts to high contrast.
  */
-const NavItem = ({ to, label, icon: Icon, end = false, indent = false }) => {
+const NavItem = ({
+  to,
+  label,
+  icon: Icon,
+  end = false,
+  indent = false,
+  badge,
+}) => {
   return (
     <NavLink
       to={to}
@@ -40,6 +47,15 @@ const NavItem = ({ to, label, icon: Icon, end = false, indent = false }) => {
             />
           )}
           <span className="truncate">{label}</span>
+          {badge != null && badge > 0 && (
+            <span
+              className="ml-auto shrink-0 inline-flex items-center justify-center
+                h-4 min-w-[18px] px-[5px] rounded-full bg-accent text-accent-fg
+                text-[10px] font-semibold tabular-nums"
+            >
+              {badge > 99 ? "99+" : badge}
+            </span>
+          )}
         </>
       )}
     </NavLink>

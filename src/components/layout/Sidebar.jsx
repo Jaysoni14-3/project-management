@@ -4,6 +4,8 @@ import {
   FolderKanban,
   Users,
   Bug,
+  Layers,
+  MessageSquare,
   Bell,
   ChevronDown,
   Settings,
@@ -21,6 +23,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useNavDrawer } from "../../context/NavDrawerContext";
 import { useProjects } from "../../hooks/useProjects";
 import useNotifications from "../../hooks/useNotifications";
+import useConversations from "../../hooks/useConversations";
 import useWhatsNew from "../../hooks/useWhatsNew";
 import { getUser } from "../../services/employee.service";
 import { projectPath } from "../../lib/slug";
@@ -35,6 +38,13 @@ const Sidebar = ({ onOpenNotifications }) => {
   /* Count-only mode — the panel mounts its own hook in full-list mode
      when it opens. We just need the badge count out here. */
   const { unreadCount } = useNotifications();
+  /* Chat unread total — badge on the Chat nav item. No notifications
+     fan out for chat, so this is the only ambient signal users get. */
+  const { conversations: chatConversations } = useConversations();
+  const chatUnreadTotal = chatConversations.reduce(
+    (sum, c) => sum + (c.unreadCount || 0),
+    0
+  );
   /* What's new — `openManually` reopens the modal even after the
      auto-open was dismissed. `hasUnseen` drives a small dot on the
      trigger so users know there's something to look at. */
@@ -141,7 +151,14 @@ const Sidebar = ({ onOpenNotifications }) => {
 
         <div className="flex flex-col gap-[2px] mb-md">
           <NavItem to="/" label="Dashboard" icon={LayoutDashboard} end />
+          <NavItem to="/modules" label="Modules" icon={Layers} />
           <NavItem to="/bugs" label="Bugs" icon={Bug} />
+          <NavItem
+            to="/chat"
+            label="Chat"
+            icon={MessageSquare}
+            badge={chatUnreadTotal}
+          />
           <NavItem to="/employees" label="Team" icon={Users} />
         </div>
 

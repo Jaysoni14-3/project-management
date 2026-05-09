@@ -267,8 +267,33 @@ const BugViewModal = ({
             </SidebarField>
           )}
 
-          <SidebarField label="Assignee">
-            {assignee ? (
+          <SidebarField label={bug.assignees?.length > 1 ? "Assignees" : "Assignee"}>
+            {bug.assignees?.length ? (
+              <div className="flex flex-col gap-xs">
+                {bug.assignees.map((a) => (
+                  <span key={a.id} className="inline-flex items-center gap-xs">
+                    {a.avatar ? (
+                      <img
+                        src={a.avatar.startsWith("http") ? a.avatar : `/images/${a.avatar}`}
+                        alt={a.name}
+                        className="h-5 w-5 rounded-full object-cover border border-line"
+                      />
+                    ) : (
+                      <span
+                        className="h-5 w-5 rounded-full bg-accent-soft text-accent
+                          text-[10px] font-semibold inline-flex items-center justify-center"
+                      >
+                        {initials(a.name)}
+                      </span>
+                    )}
+                    <span className="capitalize truncate">{a.name}</span>
+                    {a.primary && bug.assignees.length > 1 && (
+                      <span className="text-caption text-fg-subtle">(primary)</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            ) : assignee ? (
               <span className="inline-flex items-center gap-xs">
                 {assignee.avatar ? (
                   <img

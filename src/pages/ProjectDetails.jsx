@@ -14,6 +14,7 @@ import {
   Plus,
   StickyNote,
   ListChecks,
+  Layers,
   Maximize2,
 } from "lucide-react";
 
@@ -33,6 +34,9 @@ import BugBoard from "../features/bugs/BugBoard";
 import TaskFormModal from "../features/tasks/TaskFormModal";
 import TaskBoard from "../features/tasks/TaskBoard";
 import MeetingNoteViewModal from "../features/meetingNotes/MeetingNoteViewModal";
+import ModuleFormModal from "../features/modules/ModuleFormModal";
+import ModuleViewModal from "../features/modules/ModuleViewModal";
+import ModuleCard from "../features/modules/ModuleCard";
 
 import useProject from "../hooks/useProject";
 import { useProjects } from "../hooks/useProjects";
@@ -40,6 +44,8 @@ import useEmployees from "../hooks/useEmployee";
 import useMeetingNotes from "../hooks/useMeetingNotes";
 import useBugs from "../hooks/useBugs";
 import useTasks from "../hooks/useTasks";
+import { useProjectModules } from "../hooks/useModules";
+import { deleteModule } from "../services/module.service";
 import { useAuth } from "../context/AuthContext";
 import { patchProject, deleteProject } from "../services/project.service";
 import { deleteMeetingNote } from "../services/meetingNotes.service";
@@ -149,7 +155,7 @@ const InlinePill = ({ value, options, labels, configMap, onChange, leadingDot, d
 /* ============================================================
    Member tile — used in the team grid
 ============================================================ */
-const MemberTile = ({ user, isManager }) => (
+const MemberTile = ({ user, isManager, isTester }) => (
   <div className="flex items-center gap-md px-md py-sm rounded-md hover:bg-subtle/60 transition-colors duration-fast">
     <div className="h-9 w-9 shrink-0 rounded-full bg-accent-soft text-accent flex items-center justify-center font-semibold overflow-hidden">
       {user?.avatar ? (
@@ -171,6 +177,11 @@ const MemberTile = ({ user, isManager }) => (
           <span className="inline-flex items-center gap-xs text-caption font-medium px-sm py-[1px] rounded-xs bg-accent-soft text-accent border border-accent-200">
             <ShieldCheck className="h-3 w-3" />
             Lead
+          </span>
+        )}
+        {isTester && !isManager && (
+          <span className="inline-flex items-center gap-xs text-caption font-medium px-sm py-[1px] rounded-xs bg-warning-50 text-warning-700 border border-warning-200">
+            QA
           </span>
         )}
       </div>
@@ -224,6 +235,7 @@ const ProjectDetails = () => {
   const { notes: meetingNotes, loading: notesLoading } = useMeetingNotes(projectId);
   const { bugs, loading: bugsLoading } = useBugs(projectId);
   const { tasks, loading: tasksLoading } = useTasks(projectId);
+  const { modules, loading: modulesLoading } = useProjectModules(projectId);
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -246,6 +258,13 @@ const ProjectDetails = () => {
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [taskDefaultStatus, setTaskDefaultStatus] = useState("todo");
+
+  // Modules state
+  const [moduleFormOpen, setModuleFormOpen] = useState(false);
+  const [editingModule, setEditingModule] = useState(null);
+  const [viewingModule, setViewingModule] = useState(null);
+  const [moduleToDelete, setModuleToDelete] = useState(null);
+  const [deletingModule, setDeletingModule] = useState(false);
 
   /* Deep-link auto-open: when a notification (or any external link)
      points at this page with `?bug=<id>`, `?task=<id>`, or
@@ -311,6 +330,10 @@ const ProjectDetails = () => {
   const managerIdSet = useMemo(
     () => new Set(project?.managerIds ?? []),
     [project?.managerIds]
+  );
+  const testerIdSet = useMemo(
+    () => new Set(project?.testerIds ?? []),
+    [project?.testerIds]
   );
 
   const handleStatusChange = async (next) => {
@@ -382,6 +405,39 @@ const ProjectDetails = () => {
     if (!viewingNote) return;
     setNoteToDelete(viewingNote);
     setViewingNote(null);
+  };
+
+  const handleAddModule = () => {
+    setEditingModule(null);
+    setModuleFormOpen(true);
+  };
+
+  const handleViewModule = (m) => setViewingModule(m);
+
+  const handleEditFromModuleView = (m) => {
+    setEditingModule(m);
+    setViewingModule(null);
+    setModuleFormOpen(true);
+  };
+
+  const handleDeleteFromModuleView = (m) => {
+    setModuleToDelete(m);
+    setViewingModule(null);
+  };
+
+  const handleConfirmDeleteModule = async () => {
+    if (!moduleToDelete) return;
+    try {
+      setDeletingModule(true);
+      await deleteModule(moduleToDelete.id);
+      toast.success("Module deleted");
+      setModuleToDelete(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.message || "Couldn't delete module");
+    } finally {
+      setDeletingModule(false);
+    }
   };
 
   const handleConfirmDeleteNote = async () => {
@@ -618,6 +674,65 @@ const ProjectDetails = () => {
         </div>
       </Card>
 
+      {/* ---------- Modules (full width) ---------- */}
+      <Card
+        padded={false}
+        header={
+          <>
+            <div>
+              <h2 className="text-section text-fg">Modules</h2>
+              {!modulesLoading && modules.length > 0 && (
+                <p className="text-caption text-fg-subtle mt-[2px]">
+                  {modules.filter((m) => m.status !== "completed").length} active ·{" "}
+                  {modules.filter((m) => m.status === "completed").length} completed
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              leadingIcon={Plus}
+              onClick={handleAddModule}
+            >
+              Add module
+            </Button>
+          </>
+        }
+      >
+        <div className="px-md py-md min-w-0">
+          {modulesLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 rounded-lg" />
+              ))}
+            </div>
+          ) : modules.length === 0 ? (
+            <div className="py-md">
+              <EmptyState
+                icon={Layers}
+                title="No modules yet"
+                description="Modules track who built what and trigger a QA bug ticket on completion."
+                action={
+                  <Button leadingIcon={Plus} onClick={handleAddModule}>
+                    Add the first module
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
+              {modules.map((m) => (
+                <ModuleCard
+                  key={m.id}
+                  module={m}
+                  onOpen={handleViewModule}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* ---------- Bug board (full width) ---------- */}
       <Card
         padded={false}
@@ -775,6 +890,7 @@ const ProjectDetails = () => {
                     key={u.id}
                     user={u}
                     isManager={managerIdSet.has(u.id)}
+                    isTester={testerIdSet.has(u.id)}
                   />
                 ))}
               </div>
@@ -1073,6 +1189,40 @@ const ProjectDetails = () => {
         }
         onEdit={handleEditFromNoteView}
         onDelete={handleDeleteFromNoteView}
+      />
+
+      <ModuleFormModal
+        isOpen={moduleFormOpen}
+        onClose={() => {
+          setModuleFormOpen(false);
+          setEditingModule(null);
+        }}
+        projectId={project.id}
+        module={editingModule}
+        members={memberUsers}
+        currentUserId={userUid}
+      />
+
+      <ModuleViewModal
+        isOpen={!!viewingModule}
+        onClose={() => setViewingModule(null)}
+        moduleId={viewingModule?.id}
+        onEdit={handleEditFromModuleView}
+        onDelete={handleDeleteFromModuleView}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={!!moduleToDelete}
+        onClose={() => setModuleToDelete(null)}
+        onConfirm={handleConfirmDeleteModule}
+        loading={deletingModule}
+        title="Delete module"
+        description={
+          moduleToDelete
+            ? `“${moduleToDelete.title}” will be permanently removed along with its history.`
+            : ""
+        }
+        confirmLabel="Delete module"
       />
     </div>
   );

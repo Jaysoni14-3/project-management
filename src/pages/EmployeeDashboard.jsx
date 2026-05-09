@@ -6,6 +6,7 @@ import {
   Bug,
   StickyNote,
   TrendingUp,
+  Layers,
 } from "lucide-react";
 
 import PageHeader from "../components/ui/PageHeader";
@@ -22,8 +23,11 @@ import useRecentMeetingNotes from "../hooks/useRecentMeetingNotes";
 import useRecentBugs from "../hooks/useRecentBugs";
 import useBugCounts from "../hooks/useBugCounts";
 import useMeetingNotesCount from "../hooks/useMeetingNotesCount";
+import { useMyModules } from "../hooks/useModules";
 
 import RecentBugsPanel from "../features/bugs/components/RecentBugsPanel";
+import ModuleCard from "../features/modules/ModuleCard";
+import ModuleViewModal from "../features/modules/ModuleViewModal";
 
 const formatDate = () =>
   new Date().toLocaleDateString("en-US", {
@@ -271,6 +275,67 @@ const MyMeetingNotesPanel = ({ notes, loading, error, projects, employees }) => 
 };
 
 /* ============================================================
+   My modules (active) + entry to historical view
+============================================================ */
+const MyModulesPanel = ({ modules, loading, onOpen }) => {
+  const active = modules.filter((m) => m.status !== "completed").slice(0, 4);
+
+  return (
+    <Card
+      padded={false}
+      header={
+        <>
+          <div>
+            <h2 className="text-section text-fg">My modules</h2>
+            <p className="text-caption text-fg-subtle mt-[2px]">
+              {loading
+                ? ""
+                : active.length === 0
+                ? "Nothing active right now"
+                : `${active.length} active · click to open`}
+            </p>
+          </div>
+          <Link
+            to="/modules?mine=1"
+            className="inline-flex items-center gap-xs text-bodySm text-accent hover:text-accent-hover transition-colors duration-fast"
+          >
+            View all
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="px-lg py-md grid grid-cols-1 md:grid-cols-2 gap-md">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-lg" />
+          ))}
+        </div>
+      ) : active.length === 0 ? (
+        <div className="px-lg py-lg">
+          <EmptyState
+            icon={Layers}
+            title="No active modules"
+            description="When a manager assigns you a module, it'll show up here."
+          />
+        </div>
+      ) : (
+        <div className="px-lg py-md grid grid-cols-1 md:grid-cols-2 gap-md">
+          {active.map((m) => (
+            <ModuleCard
+              key={m.id}
+              module={m}
+              onOpen={onOpen}
+              showProject
+            />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+};
+
+/* ============================================================
    Page
 ============================================================ */
 const EmployeeDashboard = () => {
@@ -285,6 +350,8 @@ const EmployeeDashboard = () => {
     useBugCounts();
   const { countsByProjectId: notesByProject, loading: notesCountLoading } =
     useMeetingNotesCount();
+  const { modules: myModules, loading: myModulesLoading } = useMyModules();
+  const [viewingModule, setViewingModule] = React.useState(null);
 
   /* Project list now comes back unfiltered from the API, so the
      "my projects" scope is computed client-side here using
@@ -377,6 +444,18 @@ const EmployeeDashboard = () => {
         projects={myProjects}
         loading={projectsLoading}
         bugCountsByProject={bugsByProject}
+      />
+
+      <MyModulesPanel
+        modules={myModules}
+        loading={myModulesLoading}
+        onOpen={setViewingModule}
+      />
+
+      <ModuleViewModal
+        isOpen={Boolean(viewingModule)}
+        onClose={() => setViewingModule(null)}
+        moduleId={viewingModule?.id}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">

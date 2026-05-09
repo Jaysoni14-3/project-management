@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import Select from "react-select";
+import AppSelect from "../ui/AppSelect";
 
 import Input from "../ui/Input";
 import PasswordInput from "../ui/PasswordInput";
 import Button from "../ui/Button";
-import selectStyles from "../ui/selectStyles";
 
 import { createUserAccount, updateMyProfile } from "../../services/auth.service";
 import { syncUserProjects } from "../../services/employee.service";
@@ -251,15 +250,13 @@ const UserForm = ({ user, submitLabel = "Submit", onSuccess }) => {
         <label className="text-fg-muted text-label mb-xs block">
           Assigned projects ({selectedProjects.length})
         </label>
-        <Select
+        <AppSelect
           isMulti
           options={projectOptions}
           value={selectedProjects}
           onChange={(opts) => setSelectedProjects(opts || [])}
           isLoading={loadingProjects}
           placeholder="Assign projects to this user…"
-          classNamePrefix="react-select"
-          styles={selectStyles}
         />
         <p className="text-caption text-fg-subtle mt-xs">
           Adding/removing here updates each project's team automatically.

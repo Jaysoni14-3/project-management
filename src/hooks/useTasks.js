@@ -1,27 +1,40 @@
 import { useEffect, useState } from "react";
 import { listenToTasks } from "../services/task.service";
+import { parseError } from "../lib/errors";
+import logger from "../lib/logger";
 
 const useTasks = (projectId) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!projectId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTasks([]);
       setLoading(false);
+      setError(null);
       return undefined;
     }
 
     setLoading(true);
-    const unsubscribe = listenToTasks(projectId, (data) => {
-      setTasks(data);
-      setLoading(false);
+    setError(null);
+    const unsubscribe = listenToTasks(projectId, {
+      onData: (data) => {
+        setTasks(data || []);
+        setError(null);
+        setLoading(false);
+      },
+      onError: (err) => {
+        const parsed = parseError(err);
+        logger.error("useTasks", parsed, { projectId });
+        setError(parsed);
+        setLoading(false);
+      },
     });
-    return () => unsubscribe();
+    return () => unsubscribe?.();
   }, [projectId]);
 
-  return { tasks, loading };
+  return { tasks, loading, error };
 };
 
 export default useTasks;

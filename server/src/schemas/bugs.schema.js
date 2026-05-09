@@ -17,6 +17,9 @@ export const createBugSchema = z.object({
     .enum(["backlog", "in_progress", "in_review", "done", "resolved", "closed"])
     .optional(),
   assigneeId: z.string().nullable().optional(),
+  /* Additional assignees beyond the primary. Stored in the BugAssignee
+     join table; primary stays on Bug.assigneeId for legacy code paths. */
+  coAssigneeIds: z.array(z.string()).optional(),
   dueDate: z.string().nullable().optional(),
   attachments: z.array(attachmentInputSchema).optional(),
 });

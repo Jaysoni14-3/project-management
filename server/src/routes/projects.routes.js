@@ -14,6 +14,11 @@ import {
 } from "../lib/access.js";
 import { notFound } from "../lib/errors.js";
 import { notifyProjectAssigned } from "../lib/notify.js";
+import {
+  syncProjectChannel,
+  addToProjectChannel,
+  removeFromProjectChannel,
+} from "../lib/projectChannels.js";
 
 const router = Router();
 
@@ -43,12 +48,19 @@ const formatProject = (p) => ({
   managerIds: p.members
     .filter((m) => m.role === "manager")
     .map((m) => m.userId),
+  testerIds: p.members
+    .filter((m) => m.role === "tester")
+    .map((m) => m.userId),
   members: p.members.map((m) => ({ ...m.user, role: m.role })),
 });
 
-const buildMembersData = (memberIds = [], managerIds = []) => {
+/* Roles are mutually exclusive on a per-project basis. If the same user
+   appears in multiple lists, manager wins over tester wins over member.
+   This matches how the UI renders role badges (manager > tester > member). */
+const buildMembersData = (memberIds = [], managerIds = [], testerIds = []) => {
   const desired = new Map();
   memberIds.forEach((id) => desired.set(id, "member"));
+  testerIds.forEach((id) => desired.set(id, "tester"));
   managerIds.forEach((id) => desired.set(id, "manager"));
   return Array.from(desired, ([userId, role]) => ({ userId, role }));
 };
@@ -86,6 +98,7 @@ router.post(
       currentPhase,
       memberIds = [],
       managerIds = [],
+      testerIds = [],
     } = req.body;
 
     const project = await prisma.project.create({
@@ -97,7 +110,7 @@ router.post(
         currentPhase,
         createdById: req.user.id,
         members: {
-          create: buildMembersData(memberIds, managerIds),
+          create: buildMembersData(memberIds, managerIds, testerIds),
         },
       },
       include: projectInclude,
@@ -110,6 +123,11 @@ router.post(
       actorName: req.user.name,
     });
 
+    await syncProjectChannel(
+      project.id,
+      project.members.map((m) => m.userId)
+    );
+
     res.status(201).json(formatProject(project));
   }
 );
@@ -119,7 +137,7 @@ router.patch(
   validate({ body: updateProjectSchema }),
   async (req, res) => {
     await assertProjectManageRights(req.user, req.params.id);
-    const { memberIds, managerIds, ...data } = req.body;
+    const { memberIds, managerIds, testerIds, ...data } = req.body;
 
     if (Object.keys(data).length > 0) {
       await prisma.project.update({
@@ -129,13 +147,21 @@ router.patch(
     }
 
     let addedMemberIds = [];
-    if (memberIds !== undefined || managerIds !== undefined) {
+    if (
+      memberIds !== undefined ||
+      managerIds !== undefined ||
+      testerIds !== undefined
+    ) {
       const previous = await prisma.projectMember.findMany({
         where: { projectId: req.params.id },
         select: { userId: true },
       });
       const previousIds = new Set(previous.map((p) => p.userId));
-      const newMembers = buildMembersData(memberIds ?? [], managerIds ?? []);
+      const newMembers = buildMembersData(
+        memberIds ?? [],
+        managerIds ?? [],
+        testerIds ?? []
+      );
       addedMemberIds = newMembers
         .map((m) => m.userId)
         .filter((id) => !previousIds.has(id));
@@ -165,6 +191,17 @@ router.patch(
         actorId: req.user.id,
         actorName: req.user.name,
       });
+    }
+
+    if (
+      memberIds !== undefined ||
+      managerIds !== undefined ||
+      testerIds !== undefined
+    ) {
+      await syncProjectChannel(
+        project.id,
+        project.members.map((m) => m.userId)
+      );
     }
 
     res.json(formatProject(project));
@@ -205,6 +242,7 @@ router.post(
           actorName: req.user.name,
         });
       }
+      await addToProjectChannel(req.params.id, userId);
     }
     res.status(201).json(member);
   }
@@ -220,6 +258,7 @@ router.delete("/:id/members/:userId", async (req, res) => {
       },
     },
   });
+  await removeFromProjectChannel(req.params.id, req.params.userId);
   res.status(204).end();
 });
 

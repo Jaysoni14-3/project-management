@@ -9,24 +9,75 @@ import Button from "../components/ui/Button";
 
 import { login as loginFn } from "../services/auth.service";
 import { useAuth } from "../context/AuthContext";
+import { parseError } from "../lib/errors";
+import logger from "../lib/logger";
 
-const friendlyAuthError = (code) => {
-  switch (code) {
-    case "auth/invalid-credential":
-    case "auth/wrong-password":
-    case "auth/user-not-found":
-      return "The email or password you entered is incorrect.";
-    case "auth/invalid-email":
-      return "That doesn't look like a valid email address.";
-    case "auth/user-disabled":
-      return "This account has been disabled. Contact your admin.";
-    case "auth/too-many-requests":
-      return "Too many failed attempts. Try again in a few minutes.";
-    case "auth/network-request-failed":
-      return "We couldn't reach the server. Check your connection.";
-    default:
-      return "Something went wrong signing in. Please try again.";
+/* Translate any login error into a message the user can act on.
+   Specific cases first (DB unreachable, bad credentials, locked
+   account); fall back to the parsed kind otherwise. The server's
+   error.code is authoritative when present — it's stable, while
+   server messages may change wording over time. */
+const friendlyLoginError = (err) => {
+  const e = parseError(err);
+
+  /* Server-attached codes — exact matches first. */
+  if (e.code === "DB_UNAVAILABLE") {
+    return {
+      title: "Server is starting up",
+      body:
+        "Our database is currently unreachable. This usually clears in 30–60 seconds. Try again in a moment.",
+    };
   }
+
+  /* HTTP-status driven mapping. */
+  if (e.kind === "auth" || e.status === 401) {
+    return {
+      title: "Incorrect email or password",
+      body:
+        e.message && !/Invalid credentials/i.test(e.message)
+          ? e.message
+          : "Double-check your email and password and try again.",
+    };
+  }
+  if (e.kind === "validation") {
+    return {
+      title: "Couldn't sign in",
+      body: e.message || "Some details look off. Check the form and try again.",
+    };
+  }
+  if (e.kind === "rate_limit") {
+    return {
+      title: "Too many attempts",
+      body: "You've tried too many times. Wait a minute and try again.",
+    };
+  }
+  if (e.kind === "network") {
+    return {
+      title: "Can't reach the server",
+      body:
+        "Check your internet connection. If you're online, the server may be down — try again shortly.",
+    };
+  }
+  if (e.kind === "timeout") {
+    return {
+      title: "The server took too long",
+      body: "Your request timed out. Try again — if it keeps happening, the server may be overloaded.",
+    };
+  }
+  if (e.kind === "server" || (e.status && e.status >= 500)) {
+    return {
+      title: "Server error",
+      body:
+        e.message && e.message !== "Internal server error."
+          ? e.message
+          : "Our server hit an error signing you in. Try again in a moment.",
+    };
+  }
+
+  return {
+    title: "Couldn't sign in",
+    body: e.message || "Something went wrong. Try again.",
+  };
 };
 
 const Login = () => {
@@ -36,7 +87,10 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState("");
+  /* Two-line error: a short title + a longer description. Helps users
+     distinguish "wrong password" from "server is down" at a glance. */
+  const [formError, setFormError] = useState(null);
+  const [requestId, setRequestId] = useState(null);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -48,10 +102,14 @@ const Login = () => {
     e.preventDefault();
     if (submitting) return;
 
-    setFormError("");
+    setFormError(null);
+    setRequestId(null);
 
     if (!email || !password) {
-      setFormError("Please enter your email and password.");
+      setFormError({
+        title: "Missing details",
+        body: "Please enter both your email and password.",
+      });
       return;
     }
 
@@ -60,7 +118,12 @@ const Login = () => {
       await loginFn(email, password);
       // Auth state listener will redirect via the effect above.
     } catch (err) {
-      setFormError(friendlyAuthError(err?.code) || err?.message || "Sign-in failed");
+      const parsed = parseError(err);
+      logger.error("Login.submit", parsed, { email });
+      setFormError(friendlyLoginError(err));
+      /* Server attaches a request id — surface it so the user can
+         quote it in a bug report. */
+      setRequestId(parsed?.requestId ?? null);
       setSubmitting(false);
     }
   };
@@ -89,7 +152,19 @@ const Login = () => {
               bg-error-50 border border-error-200 text-error-800 animate-slide-down"
           >
             <AlertCircle className="h-4 w-4 shrink-0 mt-[2px]" aria-hidden />
-            <p className="text-bodySm">{formError}</p>
+            <div className="min-w-0">
+              <p className="text-bodySm font-medium">{formError.title}</p>
+              {formError.body && (
+                <p className="text-caption text-error-700 mt-[2px]">
+                  {formError.body}
+                </p>
+              )}
+              {requestId && (
+                <p className="text-caption text-error-700 font-mono mt-[2px]">
+                  id {requestId}
+                </p>
+              )}
+            </div>
           </div>
         )}
 

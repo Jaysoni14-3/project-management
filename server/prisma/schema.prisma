@@ -17,6 +17,7 @@ enum Role {
 enum ProjectMemberRole {
   manager
   member
+  tester
 }
 
 enum TaskStatus {
@@ -55,11 +56,24 @@ enum ParentType {
   meeting_note
 }
 
+enum ModuleStatus {
+  not_started
+  in_progress
+  completed
+}
+
+enum ConversationType {
+  dm
+  project
+}
+
 enum NotificationKind {
   project_assigned
   bug_assigned
   meeting_note_attendee
   comment_mention
+  module_assigned
+  module_completed
 }
 
 model User {
@@ -87,10 +101,17 @@ model User {
   createdTasks       Task[]            @relation("TaskCreatedBy")
   reportedBugs       Bug[]             @relation("BugReporter")
   assignedBugs       Bug[]             @relation("BugAssignee")
+  bugAssignments     BugAssignee[]
   meetingNotes       MeetingNote[]     @relation("NoteCreatedBy")
   meetingAttendances MeetingAttendee[]
   comments           Comment[]
   notifications      Notification[]
+  assignedModules    Module[]          @relation("ModuleAssignee")
+  createdModules     Module[]          @relation("ModuleCreatedBy")
+  moduleHistory      ModuleHistory[]   @relation("ModuleHistoryChangedBy")
+  conversations      ConversationParticipant[]
+  authoredMessages   Message[]                 @relation("MessageAuthor")
+  messageLikes       MessageLike[]
 }
 
 model Notification {
@@ -120,10 +141,12 @@ model Project {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  members      ProjectMember[]
-  tasks        Task[]
-  bugs         Bug[]
-  meetingNotes MeetingNote[]
+  members       ProjectMember[]
+  tasks         Task[]
+  bugs          Bug[]
+  meetingNotes  MeetingNote[]
+  modules       Module[]
+  conversations Conversation[]
 }
 
 model ProjectMember {
@@ -189,13 +212,34 @@ model Bug {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee    User?        @relation("BugAssignee", fields: [assigneeId], references: [id])
-  reporter    User?        @relation("BugReporter", fields: [reporterId], references: [id])
+  moduleId String?
+  module   Module? @relation(fields: [moduleId], references: [id])
+
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?         @relation("BugAssignee", fields: [assigneeId], references: [id])
+  reporter    User?         @relation("BugReporter", fields: [reporterId], references: [id])
   attachments Attachment[]
+  coAssignees BugAssignee[]
 
   @@index([projectId])
   @@index([assigneeId])
+  @@index([moduleId])
+}
+
+/* Co-assignees beyond the primary `Bug.assigneeId`. The primary stays
+   authoritative for legacy code paths (lists, kanban, filters); the
+   join table layers on additional assignees that the new module-bug
+   workflow needs. Notifications fan out to primary + all co-assignees. */
+model BugAssignee {
+  bugId      String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  bug  Bug  @relation(fields: [bugId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([bugId, userId])
+  @@index([userId])
 }
 
 model MeetingNote {
@@ -259,4 +303,118 @@ model Comment {
 
   @@index([parentType, parentId])
   @@index([authorId])
+}
+
+model Module {
+  id          String       @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  status      ModuleStatus @default(not_started)
+  assigneeId  String?
+  createdById String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee  User?           @relation("ModuleAssignee", fields: [assigneeId], references: [id])
+  createdBy User?           @relation("ModuleCreatedBy", fields: [createdById], references: [id])
+  history   ModuleHistory[]
+  bugs      Bug[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+}
+
+/* Append-only audit log for a module. Every meaningful change (status
+   transition, reassignment, title/description edit) writes a row so
+   the UI can render a history timeline and the auto-generated bug at
+   completion time can include "what was done" context. */
+model ModuleHistory {
+  id           String   @id @default(cuid())
+  moduleId     String
+  changedById  String?
+  fieldChanged String
+  oldValue     String?
+  newValue     String?
+  changedAt    DateTime @default(now())
+
+  module    Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  changedBy User?  @relation("ModuleHistoryChangedBy", fields: [changedById], references: [id])
+
+  @@index([moduleId, changedAt])
+}
+
+/* Chat: 1-on-1 DMs and project channels share one Conversation table.
+   `type = "dm"` -> two participants, no projectId.
+   `type = "project"` -> one channel per project, members synced from
+   ProjectMember on add/remove. The participant join row carries a
+   `lastReadAt` so unread counts can be computed without a separate
+   read-receipts table.
+
+   No notifications: messages don't write Notification rows. Unread is
+   purely a UI signal in the chat surface. */
+model Conversation {
+  id        String           @id @default(cuid())
+  type     ConversationType
+  projectId String?
+  lastMessageAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  project      Project?                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  /* One channel per project, period. The unique constraint lets us
+     upsert by projectId when a project is created. */
+  @@unique([projectId])
+  @@index([type])
+  @@index([lastMessageAt])
+}
+
+model ConversationParticipant {
+  conversationId String
+  userId         String
+  joinedAt       DateTime  @default(now())
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String
+  authorId       String
+  body           String
+  createdAt      DateTime  @default(now())
+  editedAt       DateTime?
+
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author       User           @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  likes        MessageLike[]
+
+  @@index([conversationId, createdAt])
+}
+
+/* Like reactions on messages. One row per user per message; unique
+   composite key prevents double-likes. Removing a like is a hard
+   delete (no soft-delete needed for reactions). */
+model MessageLike {
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
 }

@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react"
+import { toast } from "react-toastify"
 import {
   onAuthChange,
   logout as logoutFn,
   stopImpersonating as stopImpersonatingFn,
 } from "../services/auth.service"
+import { onSessionExpired } from "../services/apiClient"
+import logger from "../lib/logger"
 
 const AuthContext = createContext()
 
@@ -30,6 +33,27 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe
   }, [])
 
+  /* Global session-expired listener: any 401 from apiClient fires this
+     event. We clear local auth state and redirect to /login. The
+     apiClient debounces multiple 401s within a short window so this
+     fires at most once per real expiry. */
+  useEffect(() => {
+    const unsub = onSessionExpired(() => {
+      logger.warn("AuthContext", "session expired")
+      setUser(null)
+      setRole(null)
+      setImpersonatedBy(null)
+      if (typeof window !== "undefined") {
+        const here = window.location.pathname + window.location.search
+        if (!here.startsWith("/login")) {
+          toast.info("Your session expired. Please sign in again.")
+          window.location.assign("/login")
+        }
+      }
+    })
+    return unsub
+  }, [])
+
   const logout = async () => {
     try {
       await logoutFn()
@@ -37,7 +61,7 @@ export const AuthProvider = ({ children }) => {
       setRole(null)
       setImpersonatedBy(null)
     } catch (error) {
-      console.error("Logout error:", error)
+      logger.error("AuthContext.logout", error)
     }
   }
 
@@ -50,7 +74,7 @@ export const AuthProvider = ({ children }) => {
       await stopImpersonatingFn()
       window.location.assign("/")
     } catch (error) {
-      console.error("Stop impersonating error:", error)
+      logger.error("AuthContext.stopImpersonating", error)
     }
   }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import Select from "react-select";
+import AppSelect from "../../components/ui/AppSelect";
 import { toast } from "react-toastify";
 import {
   Paperclip,
@@ -15,7 +15,6 @@ import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import IconButton from "../../components/ui/IconButton";
 import Spinner from "../../components/ui/Spinner";
-import selectStyles from "../../components/ui/selectStyles";
 
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -246,7 +245,7 @@ const MeetingNoteFormModal = ({ isOpen, onClose, projectId, members = [], note }
             <label className="text-fg-muted text-label mb-xs block">
               Attendees ({attendees.length})
             </label>
-            <Select
+            <AppSelect
               isMulti
               options={memberOptions}
               value={attendees}
@@ -257,8 +256,6 @@ const MeetingNoteFormModal = ({ isOpen, onClose, projectId, members = [], note }
                   : "Who was in the meeting?"
               }
               isDisabled={memberOptions.length === 0}
-              styles={selectStyles}
-              classNamePrefix="react-select"
             />
           </div>
 

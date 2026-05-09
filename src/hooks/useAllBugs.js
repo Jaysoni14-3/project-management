@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { listenToAllBugs } from "../services/bug.service";
+import { parseError } from "../lib/errors";
+import logger from "../lib/logger";
 
 const useAllBugs = () => {
   const [bugs, setBugs] = useState([]);
@@ -9,10 +11,18 @@ const useAllBugs = () => {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    const unsubscribe = listenToAllBugs((data) => {
-      setBugs(data || []);
-      setError(null);
-      setLoading(false);
+    const unsubscribe = listenToAllBugs({
+      onData: (data) => {
+        setBugs(data || []);
+        setError(null);
+        setLoading(false);
+      },
+      onError: (err) => {
+        const parsed = parseError(err);
+        logger.error("useAllBugs", parsed);
+        setError(parsed);
+        setLoading(false);
+      },
     });
     return () => unsubscribe?.();
   }, []);

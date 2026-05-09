@@ -13,12 +13,13 @@ import useTaskCounts from "../hooks/useTaskCounts";
 import { useAuth } from "../context/AuthContext";
 import ProjectFormModal from "../features/projects/ProjectFormModal";
 import ProjectCard from "../features/projects/components/ProjectCard";
+import ErrorState from "../components/error/ErrorState";
 
 const Projects = () => {
   const [isProjectModalOpen, setProjectModalOpen] = useState(false);
   const [scope, setScope] = useState("all"); // "all" | "mine"
   const { canManage, user } = useAuth();
-  const { projects, loading } = useProjects();
+  const { projects, loading, error } = useProjects();
   const { countsByProjectId } = useBugCounts();
   const { countsByProjectId: noteCountsByProjectId } = useMeetingNotesCount();
   const { countsByProjectId: taskCountsByProjectId } = useTaskCounts();
@@ -102,7 +103,14 @@ const Projects = () => {
         </div>
       )}
 
-      {loading ? (
+      {error && projects.length === 0 ? (
+        <ErrorState
+          error={error}
+          title="Couldn't load projects"
+          description="We couldn't reach the server. Try again, or contact support if it keeps happening."
+          onRetry={() => window.location.reload()}
+        />
+      ) : loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-md">
           {Array.from({ length: 6 }).map((_, i) => (
             <div

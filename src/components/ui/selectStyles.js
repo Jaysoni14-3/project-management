@@ -69,6 +69,14 @@ const selectStyles = {
     zIndex: 1100,
   }),
 
+  /* When the menu is portaled to <body> (see AppSelect), it lives
+     outside the Modal's stacking context — bump the z-index above the
+     modal layer so it isn't covered by the backdrop or sheet. */
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: 9999,
+  }),
+
   menuList: (base) => ({
     ...base,
     paddingTop: 4,
