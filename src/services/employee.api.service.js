@@ -1,29 +1,43 @@
 import { api, subscribe, normalizeUser, normalizeUsers } from "./apiClient";
 
+/* Forward to subscribe() in either shape:
+   - legacy plain callback: `(data) => ...`
+   - new handlers object:   `{ onData, onError, intervalMs }`
+   Without this branch, an `{ onData, onError }` arg gets wrapped in
+   `(list) => callback(normalize(list))` which then tries to invoke an
+   object as a function — silently throws and `loading` never flips. */
+const wrapHandlers = (handlers, transform) => {
+  if (handlers && typeof handlers === "object" && !Array.isArray(handlers)) {
+    return {
+      ...handlers,
+      onData: (data) => handlers.onData?.(transform(data)),
+    };
+  }
+  return (data) => handlers(transform(data));
+};
+
 export const getAllEmployees = async () => {
   const list = await api.get("/api/users");
   return normalizeUsers(list);
 };
 
-export const listenToEmployees = (callback) =>
-  subscribe(
-    () => api.get("/api/users"),
-    (list) => callback(normalizeUsers(list))
-  );
+export const listenToEmployees = (handlers) =>
+  subscribe(() => api.get("/api/users"), wrapHandlers(handlers, normalizeUsers));
 
 export const getUser = async (id) => {
   const u = await api.get(`/api/users/${id}`);
   return normalizeUser(u);
 };
 
-export const listenToUser = (id, callback) => {
+export const listenToUser = (id, handlers) => {
   if (!id) {
-    callback(null);
+    if (typeof handlers === "function") handlers(null);
+    else handlers?.onData?.(null);
     return () => {};
   }
   return subscribe(
     () => api.get(`/api/users/${id}`),
-    (u) => callback(normalizeUser(u))
+    wrapHandlers(handlers, normalizeUser)
   );
 };
 
