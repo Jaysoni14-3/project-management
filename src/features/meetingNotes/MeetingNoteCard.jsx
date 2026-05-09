@@ -105,6 +105,7 @@ const MeetingNoteCard = ({
   canDelete = false,
   onEdit,
   onDelete,
+  onView,               // open the read-only view modal (with comments)
 }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -121,10 +122,25 @@ const MeetingNoteCard = ({
   const attachments = note.attachments || [];
   const showActions = canEdit || canDelete;
 
+  const handleCardClick = () => onView?.();
+  const handleCardKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onView?.();
+    }
+  };
+  const stop = (e) => e.stopPropagation();
+
   return (
     <article
-      className="group relative bg-surface border border-line rounded-lg
-        transition-[border-color,box-shadow] duration-fast hover:border-line-strong"
+      role={onView ? "button" : undefined}
+      tabIndex={onView ? 0 : undefined}
+      onClick={onView ? handleCardClick : undefined}
+      onKeyDown={onView ? handleCardKeyDown : undefined}
+      className={`group relative bg-surface border border-line rounded-lg
+        transition-[border-color,box-shadow] duration-fast hover:border-line-strong
+        focus-visible:outline-none focus-visible:shadow-focus-ring
+        ${onView ? "cursor-pointer" : ""}`}
     >
       {/* Header */}
       <header className="flex items-start gap-md px-lg pt-md pb-sm">
@@ -166,7 +182,10 @@ const MeetingNoteCard = ({
                 size="sm"
                 variant="ghost"
                 aria-label="Edit note"
-                onClick={onEdit}
+                onClick={(e) => {
+                  stop(e);
+                  onEdit?.();
+                }}
               />
             )}
             {canDelete && (
@@ -175,7 +194,10 @@ const MeetingNoteCard = ({
                 size="sm"
                 variant="destructive"
                 aria-label="Delete note"
-                onClick={onDelete}
+                onClick={(e) => {
+                  stop(e);
+                  onDelete?.();
+                }}
               />
             )}
           </div>
@@ -191,7 +213,10 @@ const MeetingNoteCard = ({
           {isLong && (
             <button
               type="button"
-              onClick={() => setExpanded((x) => !x)}
+              onClick={(e) => {
+                stop(e);
+                setExpanded((x) => !x);
+              }}
               className="mt-xs text-bodySm text-accent hover:text-accent-hover transition-colors duration-fast"
             >
               {expanded ? "Show less" : "Show more"}
@@ -250,6 +275,7 @@ const MeetingNoteCard = ({
                         href={att.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={stop}
                         className="flex-1 min-w-0 text-bodySm text-fg hover:text-accent transition-colors duration-fast truncate"
                       >
                         {att.name}
@@ -262,6 +288,7 @@ const MeetingNoteCard = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         download={att.name}
+                        onClick={stop}
                         aria-label={`Download ${att.name}`}
                         className="inline-flex items-center justify-center h-7 w-7 rounded-sm text-fg-muted hover:bg-subtle hover:text-fg transition-colors duration-fast"
                       >

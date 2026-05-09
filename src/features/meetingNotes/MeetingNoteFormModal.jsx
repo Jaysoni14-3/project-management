@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Select from "react-select";
 import { toast } from "react-toastify";
 import {
@@ -15,57 +15,13 @@ import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import IconButton from "../../components/ui/IconButton";
 import Spinner from "../../components/ui/Spinner";
+import selectStyles from "../../components/ui/selectStyles";
 
 import { useAuth } from "../../context/AuthContext";
 import {
   createMeetingNote,
   updateMeetingNote,
 } from "../../services/meetingNotes.service";
-
-const reactSelectStyles = {
-  control: (base, state) => ({
-    ...base,
-    minHeight: "36px",
-    borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(228 228 231)",
-    boxShadow: state.isFocused
-      ? "0 0 0 3px rgba(59, 130, 246, 0.25)"
-      : "none",
-    borderRadius: "8px",
-    fontSize: "14px",
-    "&:hover": {
-      borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(212 212 216)",
-    },
-  }),
-  option: (base, state) => ({
-    ...base,
-    fontSize: "14px",
-    backgroundColor: state.isSelected
-      ? "rgb(239 246 255)"
-      : state.isFocused
-      ? "rgb(244 244 245)"
-      : "white",
-    color: "rgb(24 24 27)",
-    cursor: "pointer",
-  }),
-  multiValue: (base) => ({
-    ...base,
-    backgroundColor: "rgb(239 246 255)",
-    borderRadius: "4px",
-  }),
-  multiValueLabel: (base) => ({
-    ...base,
-    color: "rgb(6 29 111)",
-    fontSize: "12px",
-    fontWeight: 500,
-  }),
-  multiValueRemove: (base) => ({
-    ...base,
-    color: "rgb(6 29 111)",
-    ":hover": { backgroundColor: "rgb(219 234 254)", color: "rgb(6 29 111)" },
-  }),
-  placeholder: (base) => ({ ...base, fontSize: "14px", color: "rgb(113 113 122)" }),
-  indicatorSeparator: () => ({ display: "none" }),
-};
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -106,6 +62,7 @@ const MeetingNoteFormModal = ({ isOpen, onClose, projectId, members = [], note }
   const [removedAttachments, setRemovedAttachments] = useState([]); // existing removed
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const attendeesInitializedRef = useRef(false);
 
   const memberOptions = useMemo(
     () =>
@@ -116,21 +73,21 @@ const MeetingNoteFormModal = ({ isOpen, onClose, projectId, members = [], note }
     [members, user?.uid]
   );
 
-  /* Prefill on open / when note changes */
+  /* Prefill on open / when switching to a different note.
+     Keyed on note?.id (not note) so realtime refetches that produce a new
+     object reference for the same note don't wipe the user's in-progress
+     edits. Members is intentionally NOT in deps — the parent's members array
+     gets a new reference every realtime tick, which would otherwise reset
+     the form mid-typing. */
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      attendeesInitializedRef.current = false;
+      return;
+    }
     if (note) {
       setTitle(note.title || "");
       setContent(note.content || "");
       setMeetingDate(note.meetingDate || today());
-      setAttendees(
-        (note.attendeeIds || [])
-          .map((id) => {
-            const m = members.find((mm) => mm.id === id);
-            return m ? { value: m.id, label: m.name } : null;
-          })
-          .filter(Boolean)
-      );
       setKeepAttachments(note.attachments || []);
       setRemovedAttachments([]);
       setPendingFiles([]);
@@ -144,6 +101,27 @@ const MeetingNoteFormModal = ({ isOpen, onClose, projectId, members = [], note }
       setPendingFiles([]);
     }
     setFormError("");
+    attendeesInitializedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, note?.id]);
+
+  /* Populate attendees once per open in edit mode. We can't do this in the
+     reset effect above because members may not be loaded yet at open time;
+     but we also can't keep re-running it when members changes, or a realtime
+     tick would clobber the user's manual attendee edits. The ref gates this
+     to a single successful init per open. */
+  useEffect(() => {
+    if (!isOpen || !note || attendeesInitializedRef.current) return;
+    if (members.length === 0) return;
+    setAttendees(
+      (note.attendeeIds || [])
+        .map((id) => {
+          const m = members.find((mm) => mm.id === id);
+          return m ? { value: m.id, label: m.name } : null;
+        })
+        .filter(Boolean)
+    );
+    attendeesInitializedRef.current = true;
   }, [isOpen, note, members]);
 
   const handleAddFiles = (e) => {
@@ -219,11 +197,6 @@ const MeetingNoteFormModal = ({ isOpen, onClose, projectId, members = [], note }
       onClose={submitting ? undefined : onClose}
       closeOnBackdrop={!submitting}
       title={isEdit ? "Edit meeting note" : "Add meeting note"}
-      description={
-        isEdit
-          ? "Update the recap, attendees, or attachments."
-          : "Capture decisions, attendees, and any files shared."
-      }
       size="lg"
       footer={
         <>
@@ -284,7 +257,7 @@ const MeetingNoteFormModal = ({ isOpen, onClose, projectId, members = [], note }
                   : "Who was in the meeting?"
               }
               isDisabled={memberOptions.length === 0}
-              styles={reactSelectStyles}
+              styles={selectStyles}
               classNamePrefix="react-select"
             />
           </div>

@@ -7,6 +7,7 @@ import Skeleton from "../../../components/ui/Skeleton";
 import EmptyState from "../../../components/ui/EmptyState";
 
 import { STATUS, PRIORITY, SEVERITY, TONE_DOT, TONE_ICON } from "../constants";
+import { projectPath } from "../../../lib/slug";
 
 /* =============================================================
    Dashboard "Recent bugs" panel — cross-project feed. Mirrors
@@ -99,7 +100,6 @@ const RecentBugsPanel = ({ bugs, loading, error, projects }) => {
           <EmptyState
             icon={Bug}
             title="No bugs filed yet"
-            description="Once teammates start filing bugs against any project, the latest entries will appear here."
           />
         </div>
       ) : (
@@ -114,7 +114,7 @@ const RecentBugsPanel = ({ bugs, loading, error, projects }) => {
             return (
               <li key={`${bug.projectId}-${bug.id}`}>
                 <Link
-                  to={bug.projectId ? `/projects/${bug.projectId}` : "#"}
+                  to={project ? projectPath(project) : "#"}
                   className="group flex items-start gap-md px-lg py-md hover:bg-subtle/60 transition-colors duration-fast"
                 >
                   <div className="h-8 w-8 rounded-md bg-error-50 text-error-700 flex items-center justify-center shrink-0">

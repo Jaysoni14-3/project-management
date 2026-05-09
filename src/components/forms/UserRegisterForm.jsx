@@ -1,70 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import Select from "react-select";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 import Input from "../ui/Input";
 import PasswordInput from "../ui/PasswordInput";
 import Button from "../ui/Button";
+import selectStyles from "../ui/selectStyles";
 
-import { auth, db } from "../../services/firebase";
+import { createUserAccount, updateMyProfile } from "../../services/auth.service";
 import { syncUserProjects } from "../../services/employee.service";
 import useManagers from "../../hooks/useManagers";
 import { useProjects } from "../../hooks/useProjects";
 
 const avatars = ["boy_1.jpeg", "boy_2.jpeg", "boy_3.jpeg"];
-
-const reactSelectStyles = {
-  control: (base, state) => ({
-    ...base,
-    minHeight: "36px",
-    borderColor: state.isFocused
-      ? "rgb(6 29 111)"
-      : "rgb(228 228 231)",
-    boxShadow: state.isFocused
-      ? "0 0 0 3px rgba(59, 130, 246, 0.25)"
-      : "none",
-    borderRadius: "8px",
-    fontSize: "14px",
-    "&:hover": {
-      borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(212 212 216)",
-    },
-  }),
-  option: (base, state) => ({
-    ...base,
-    fontSize: "14px",
-    backgroundColor: state.isSelected
-      ? "rgb(239 246 255)"
-      : state.isFocused
-      ? "rgb(244 244 245)"
-      : "white",
-    color: "rgb(24 24 27)",
-    cursor: "pointer",
-  }),
-  multiValue: (base) => ({
-    ...base,
-    backgroundColor: "rgb(239 246 255)",
-    borderRadius: "4px",
-  }),
-  multiValueLabel: (base) => ({
-    ...base,
-    color: "rgb(6 29 111)",
-    fontSize: "12px",
-    fontWeight: 500,
-  }),
-  multiValueRemove: (base) => ({
-    ...base,
-    color: "rgb(6 29 111)",
-    ":hover": { backgroundColor: "rgb(219 234 254)", color: "rgb(6 29 111)" },
-  }),
-  placeholder: (base) => ({
-    ...base,
-    fontSize: "14px",
-    color: "rgb(113 113 122)",
-  }),
-  indicatorSeparator: () => ({ display: "none" }),
-};
 
 const UserForm = ({ user, submitLabel = "Submit", onSuccess }) => {
   const isEdit = Boolean(user);
@@ -174,19 +122,17 @@ const UserForm = ({ user, submitLabel = "Submit", onSuccess }) => {
       setLoading(true);
 
       if (isEdit) {
-        // Persist all editable user fields EXCEPT assignedProjects (handled by syncUserProjects)
-        await updateDoc(doc(db, "users", user.id), {
+        await updateMyProfile(user.id, {
           name,
-          email,
           role,
           isManager: role === "manager",
           managerID: managerId,
+          managerId: managerId || null,
           avatar: randomAvatar,
           whatsapp,
           phoneNumber,
           joinedDate,
           designation,
-          updatedAt: serverTimestamp(),
         });
 
         // Bi-directional project sync
@@ -204,22 +150,20 @@ const UserForm = ({ user, submitLabel = "Submit", onSuccess }) => {
           return;
         }
 
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        const newUserId = cred.user.uid;
-
-        await setDoc(doc(db, "users", newUserId), {
-          name,
+        const { id: newUserId } = await createUserAccount({
           email,
-          role,
-          isManager: role === "manager",
-          managerID: managerId,
-          avatar: randomAvatar,
-          whatsapp,
-          phoneNumber,
-          joinedDate,
-          designation,
-          assignedProjects: [],
-          createdAt: serverTimestamp(),
+          password,
+          profile: {
+            name,
+            role,
+            isManager: role === "manager",
+            managerID: managerId,
+            avatar: randomAvatar,
+            whatsapp,
+            phoneNumber,
+            joinedDate,
+            designation,
+          },
         });
 
         // If projects were chosen at create time, push them through the sync
@@ -315,7 +259,7 @@ const UserForm = ({ user, submitLabel = "Submit", onSuccess }) => {
           isLoading={loadingProjects}
           placeholder="Assign projects to this user…"
           classNamePrefix="react-select"
-          styles={reactSelectStyles}
+          styles={selectStyles}
         />
         <p className="text-caption text-fg-subtle mt-xs">
           Adding/removing here updates each project's team automatically.

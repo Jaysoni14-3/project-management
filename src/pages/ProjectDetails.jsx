@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   Plus,
   StickyNote,
+  ListChecks,
+  Maximize2,
 } from "lucide-react";
 
 import Card from "../components/ui/Card";
@@ -26,15 +28,22 @@ import ProjectFormModal from "../features/projects/ProjectFormModal";
 import MeetingNoteFormModal from "../features/meetingNotes/MeetingNoteFormModal";
 import MeetingNoteCard from "../features/meetingNotes/MeetingNoteCard";
 import BugFormModal from "../features/bugs/BugFormModal";
+import BugViewModal from "../features/bugs/BugViewModal";
 import BugBoard from "../features/bugs/BugBoard";
+import TaskFormModal from "../features/tasks/TaskFormModal";
+import TaskBoard from "../features/tasks/TaskBoard";
+import MeetingNoteViewModal from "../features/meetingNotes/MeetingNoteViewModal";
 
 import useProject from "../hooks/useProject";
+import { useProjects } from "../hooks/useProjects";
 import useEmployees from "../hooks/useEmployee";
 import useMeetingNotes from "../hooks/useMeetingNotes";
 import useBugs from "../hooks/useBugs";
+import useTasks from "../hooks/useTasks";
 import { useAuth } from "../context/AuthContext";
 import { patchProject, deleteProject } from "../services/project.service";
 import { deleteMeetingNote } from "../services/meetingNotes.service";
+import { resolveProjectFromUrlParam, projectPath } from "../lib/slug";
 
 /* ============================================================
    Tokens / helpers
@@ -188,16 +197,33 @@ const DetailRow = ({ label, children }) => (
    Page
 ============================================================ */
 const ProjectDetails = () => {
-  const { projectId } = useParams();
+  const { projectSlug } = useParams();
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, role, canManage } = useAuth();
   const isAdmin = role === "admin";
   const userUid = user?.uid;
 
-  const { project, loading, error } = useProject(projectId);
+  /* Resolve `:projectSlug` to a real project. Accepts either a slugified
+     name (new URL style) or a raw cuid (legacy bookmarks). The match is
+     done against the realtime project list the user can already see. */
+  const { projects, loading: projectsLoading } = useProjects();
+  const resolved = useMemo(
+    () => resolveProjectFromUrlParam(projectSlug, projects),
+    [projectSlug, projects]
+  );
+  const projectId = resolved?.id || null;
+
+  const { project: liveProject, loading: liveLoading, error } = useProject(projectId);
+  /* While the slug is being resolved we still want to render the matched
+     project's data eagerly (no flicker), but once the per-project
+     subscription delivers an update we prefer that authoritative copy. */
+  const project = liveProject || resolved;
+  const loading = projectsLoading || (!!projectId && liveLoading);
   const { employees, loading: employeesLoading } = useEmployees();
   const { notes: meetingNotes, loading: notesLoading } = useMeetingNotes(projectId);
   const { bugs, loading: bugsLoading } = useBugs(projectId);
+  const { tasks, loading: tasksLoading } = useTasks(projectId);
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -208,11 +234,62 @@ const ProjectDetails = () => {
   const [editingNote, setEditingNote] = useState(null);
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [deletingNote, setDeletingNote] = useState(false);
+  const [viewingNote, setViewingNote] = useState(null);
 
   // Bugs module state
   const [bugFormOpen, setBugFormOpen] = useState(false);
   const [editingBug, setEditingBug] = useState(null);
   const [bugDefaultStatus, setBugDefaultStatus] = useState("backlog");
+  const [viewingBug, setViewingBug] = useState(null);
+
+  // Tasks module state
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [taskDefaultStatus, setTaskDefaultStatus] = useState("todo");
+
+  /* Deep-link auto-open: when a notification (or any external link)
+     points at this page with `?bug=<id>`, `?task=<id>`, or
+     `?note=<id>`, find the matching entity once it loads and pop the
+     corresponding modal. The query param is stripped after opening so
+     the URL stays clean and the back button doesn't replay it. */
+  useEffect(() => {
+    const noteId = searchParams.get("note");
+    const taskId = searchParams.get("task");
+    const bugId = searchParams.get("bug");
+    if (!noteId && !taskId && !bugId) return;
+
+    let opened = false;
+    if (noteId && meetingNotes?.length) {
+      const note = meetingNotes.find((n) => n.id === noteId);
+      if (note) {
+        setViewingNote(note);
+        opened = true;
+      }
+    }
+    if (taskId && tasks?.length) {
+      const task = tasks.find((t) => t.id === taskId);
+      if (task) {
+        setEditingTask(task);
+        setTaskFormOpen(true);
+        opened = true;
+      }
+    }
+    if (bugId && bugs?.length) {
+      const bug = bugs.find((b) => b.id === bugId);
+      if (bug) {
+        setViewingBug(bug);
+        opened = true;
+      }
+    }
+
+    if (opened) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("note");
+      next.delete("task");
+      next.delete("bug");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, meetingNotes, tasks, bugs, setSearchParams]);
 
   // Resolve member/manager IDs to user objects (memoized)
   const employeeMap = useMemo(() => {
@@ -267,14 +344,44 @@ const ProjectDetails = () => {
     setBugFormOpen(true);
   };
 
-  const handleEditBug = (bug) => {
-    setEditingBug(bug);
+  const handleViewBug = (bug) => setViewingBug(bug);
+
+  const handleEditFromBugView = () => {
+    if (!viewingBug) return;
+    setEditingBug(viewingBug);
+    setViewingBug(null);
     setBugFormOpen(true);
+  };
+
+  const handleAddTask = (status = "todo") => {
+    setEditingTask(null);
+    setTaskDefaultStatus(status);
+    setTaskFormOpen(true);
+  };
+
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+    setTaskFormOpen(true);
   };
 
   const handleEditNote = (note) => {
     setEditingNote(note);
     setNoteFormOpen(true);
+  };
+
+  const handleViewNote = (note) => setViewingNote(note);
+
+  const handleEditFromNoteView = () => {
+    if (!viewingNote) return;
+    setEditingNote(viewingNote);
+    setViewingNote(null);
+    setNoteFormOpen(true);
+  };
+
+  const handleDeleteFromNoteView = () => {
+    if (!viewingNote) return;
+    setNoteToDelete(viewingNote);
+    setViewingNote(null);
   };
 
   const handleConfirmDeleteNote = async () => {
@@ -375,18 +482,12 @@ const ProjectDetails = () => {
   const memberCount = project.memberIds?.length ?? 0;
   const managerCount = project.managerIds?.length ?? 0;
   const bugCount = bugs.filter((b) => b.status !== "done").length;
+  const openTaskCount = tasks.filter((t) => t.status !== "done").length;
 
   return (
     <div className="flex flex-col gap-xl">
       {/* ---------- Hero / header ---------- */}
       <div className="relative">
-        {/* Subtle accent wash to set this page apart */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -inset-x-xl -top-xl h-48
-            bg-[radial-gradient(circle_at_15%_0%,rgba(59,130,246,0.08),transparent_60%)]"
-        />
-
         <div className="relative flex flex-col gap-md">
           {/* Breadcrumb */}
           <Link
@@ -412,7 +513,7 @@ const ProjectDetails = () => {
                   configMap={STATUS_CONFIG}
                   onChange={handleStatusChange}
                   leadingDot
-                  disabled={!isAdmin}
+                  disabled={!canManage}
                 />
                 <InlinePill
                   value={phase}
@@ -420,7 +521,7 @@ const ProjectDetails = () => {
                   labels={PHASE_LABELS}
                   configMap={{}}
                   onChange={handlePhaseChange}
-                  disabled={!isAdmin}
+                  disabled={!canManage}
                   className="[&>select]:bg-accent-soft [&>select]:text-accent [&>select]:border-accent-200"
                 />
                 {project.clientName && (
@@ -431,8 +532,8 @@ const ProjectDetails = () => {
               </div>
             </div>
 
-            {/* Actions */}
-            {isAdmin && (
+            {/* Project actions — admin/manager. Hidden for employees. */}
+            {canManage && (
               <div className="flex items-center gap-sm shrink-0">
                 <Button
                   variant="secondary"
@@ -462,6 +563,61 @@ const ProjectDetails = () => {
         </div>
       </Card>
 
+      {/* ---------- Task board (full width) ---------- */}
+      <Card
+        padded={false}
+        header={
+          <>
+            <div>
+              <h2 className="text-section text-fg">Tasks</h2>
+              {!tasksLoading && tasks.length > 0 && (
+                <p className="text-caption text-fg-subtle mt-[2px]">
+                  {openTaskCount} open · {tasks.length - openTaskCount} done
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              leadingIcon={Plus}
+              onClick={() => handleAddTask("todo")}
+            >
+              Add task
+            </Button>
+          </>
+        }
+      >
+        <div className="px-md py-md min-w-0">
+          {tasksLoading ? (
+            <div className="flex gap-md overflow-x-auto">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-64 w-[300px] rounded-lg shrink-0" />
+              ))}
+            </div>
+          ) : tasks.length === 0 ? (
+            <div className="py-md">
+              <EmptyState
+                icon={ListChecks}
+                title="No tasks yet"
+                action={
+                  <Button leadingIcon={Plus} onClick={() => handleAddTask("todo")}>
+                    Add the first task
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <TaskBoard
+              projectId={project.id}
+              tasks={tasks}
+              members={memberUsers}
+              onAddTask={handleAddTask}
+              onEditTask={handleEditTask}
+            />
+          )}
+        </div>
+      </Card>
+
       {/* ---------- Bug board (full width) ---------- */}
       <Card
         padded={false}
@@ -469,22 +625,33 @@ const ProjectDetails = () => {
           <>
             <div>
               <h2 className="text-section text-fg">Bugs</h2>
-              <p className="text-caption text-fg-subtle mt-[2px]">
-                {bugsLoading
-                  ? "Loading…"
-                  : bugs.length === 0
-                  ? "Track defects from report to fix"
-                  : `${bugs.length} ${bugs.length === 1 ? "bug" : "bugs"} on the board`}
-              </p>
+              {!bugsLoading && bugs.length > 0 && (
+                <p className="text-caption text-fg-subtle mt-[2px]">
+                  {bugs.length} {bugs.length === 1 ? "bug" : "bugs"} on the board
+                </p>
+              )}
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              leadingIcon={Plus}
-              onClick={() => handleAddBug("backlog")}
-            >
-              Add bug
-            </Button>
+            <div className="flex items-center gap-sm">
+              <Link
+                to={`${projectPath(project)}/bugs`}
+                className="inline-flex items-center gap-xs h-controlSm px-md rounded-md
+                  border border-line bg-surface text-bodySm text-fg-muted
+                  hover:bg-subtle hover:text-fg hover:border-line-strong
+                  transition-colors duration-fast"
+                title="Open the focused bugs-only board"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+                Focus mode
+              </Link>
+              <Button
+                size="sm"
+                variant="secondary"
+                leadingIcon={Plus}
+                onClick={() => handleAddBug("backlog")}
+              >
+                Add bug
+              </Button>
+            </div>
           </>
         }
       >
@@ -500,7 +667,6 @@ const ProjectDetails = () => {
               <EmptyState
                 icon={Bug}
                 title="No bugs filed yet"
-                description="Capture defects with severity, priority, and screenshots so they can be triaged on the board."
                 action={
                   <Button leadingIcon={Plus} onClick={() => handleAddBug("backlog")}>
                     File the first bug
@@ -514,7 +680,7 @@ const ProjectDetails = () => {
               bugs={bugs}
               members={memberUsers}
               onAddBug={handleAddBug}
-              onEditBug={handleEditBug}
+              onEditBug={handleViewBug}
             />
           )}
         </div>
@@ -527,14 +693,7 @@ const ProjectDetails = () => {
           {/* Description */}
           <Card
             padded={false}
-            header={
-              <div>
-                <h2 className="text-section text-fg">Description</h2>
-                <p className="text-caption text-fg-subtle mt-[2px]">
-                  What this project is about
-                </p>
-              </div>
-            }
+            header={<h2 className="text-section text-fg">Description</h2>}
           >
             <div className="px-lg py-md">
               {project.description ? (
@@ -544,7 +703,7 @@ const ProjectDetails = () => {
               ) : (
                 <p className="text-bodySm text-fg-subtle italic">
                   No description yet.{" "}
-                  {isAdmin && (
+                  {canManage && (
                     <button
                       type="button"
                       onClick={() => setEditOpen(true)}
@@ -565,13 +724,13 @@ const ProjectDetails = () => {
               <>
                 <div>
                   <h2 className="text-section text-fg">Team</h2>
-                  <p className="text-caption text-fg-subtle mt-[2px]">
-                    {memberCount === 0
-                      ? "No one assigned yet"
-                      : `${memberCount} ${memberCount === 1 ? "person" : "people"} on this project`}
-                  </p>
+                  {memberCount > 0 && (
+                    <p className="text-caption text-fg-subtle mt-[2px]">
+                      {memberCount} {memberCount === 1 ? "person" : "people"} on this project
+                    </p>
+                  )}
                 </div>
-                {isAdmin && memberCount > 0 && (
+                {canManage && memberCount > 0 && (
                   <button
                     type="button"
                     onClick={() => setEditOpen(true)}
@@ -600,9 +759,8 @@ const ProjectDetails = () => {
                 <EmptyState
                   icon={Users}
                   title="No team members assigned"
-                  description="Assign teammates to this project to track who's working on what."
                   action={
-                    isAdmin ? (
+                    canManage ? (
                       <Button onClick={() => setEditOpen(true)}>
                         Assign team
                       </Button>
@@ -630,11 +788,11 @@ const ProjectDetails = () => {
               <>
                 <div>
                   <h2 className="text-section text-fg">Meeting notes</h2>
-                  <p className="text-caption text-fg-subtle mt-[2px]">
-                    {meetingNotes.length === 0
-                      ? "Capture decisions, attendees, and files"
-                      : `${meetingNotes.length} ${meetingNotes.length === 1 ? "entry" : "entries"}`}
-                  </p>
+                  {meetingNotes.length > 0 && (
+                    <p className="text-caption text-fg-subtle mt-[2px]">
+                      {meetingNotes.length} {meetingNotes.length === 1 ? "entry" : "entries"}
+                    </p>
+                  )}
                 </div>
                 <Button
                   size="sm"
@@ -663,7 +821,6 @@ const ProjectDetails = () => {
                   <EmptyState
                     icon={StickyNote}
                     title="No meeting notes yet"
-                    description="Capture meeting recaps, decisions, attendees, and any files shared during the meeting."
                     action={
                       <Button leadingIcon={Plus} onClick={handleAddNote}>
                         Add the first note
@@ -674,18 +831,19 @@ const ProjectDetails = () => {
               ) : (
                 <ul className="flex flex-col gap-md">
                   {meetingNotes.map((note) => {
-                    const author = employeeMap.get(note.createdBy) || null;
-                    const isAuthor = note.createdBy === userUid;
+                    const author = employeeMap.get(note.createdById) || null;
+                    const isAuthor = note.createdById === userUid;
                     return (
                       <li key={note.id}>
                         <MeetingNoteCard
                           note={note}
                           members={memberUsers}
                           authorUser={author}
-                          canEdit={isAdmin || isAuthor}
-                          canDelete={isAdmin || isAuthor}
+                          canEdit={canManage || isAuthor}
+                          canDelete={canManage || isAuthor}
                           onEdit={() => handleEditNote(note)}
                           onDelete={() => setNoteToDelete(note)}
+                          onView={() => handleViewNote(note)}
                         />
                       </li>
                     );
@@ -726,10 +884,22 @@ const ProjectDetails = () => {
                   <span className="tabular-nums">{memberCount}</span>
                 </span>
               </DetailRow>
+              <DetailRow label="Open tasks">
+                <span className="inline-flex items-center gap-xs">
+                  <ListChecks className={`h-3.5 w-3.5 ${openTaskCount > 0 ? "text-accent" : "text-fg-subtle"}`} />
+                  <span className="tabular-nums">{tasksLoading ? "—" : openTaskCount}</span>
+                </span>
+              </DetailRow>
               <DetailRow label="Active bugs">
                 <span className="inline-flex items-center gap-xs">
                   <Bug className={`h-3.5 w-3.5 ${bugCount > 0 ? "text-error" : "text-fg-subtle"}`} />
                   <span className="tabular-nums">{bugCount}</span>
+                </span>
+              </DetailRow>
+              <DetailRow label="Meeting notes">
+                <span className="inline-flex items-center gap-xs">
+                  <StickyNote className={`h-3.5 w-3.5 ${meetingNotes.length > 0 ? "text-accent" : "text-fg-subtle"}`} />
+                  <span className="tabular-nums">{notesLoading ? "—" : meetingNotes.length}</span>
                 </span>
               </DetailRow>
               <DetailRow label="Created">
@@ -755,11 +925,11 @@ const ProjectDetails = () => {
             header={
               <div>
                 <h2 className="text-section text-fg">Leads</h2>
-                <p className="text-caption text-fg-subtle mt-[2px]">
-                  {managerCount === 0
-                    ? "Unassigned"
-                    : `${managerCount} project ${managerCount === 1 ? "manager" : "managers"}`}
-                </p>
+                {managerCount > 0 && (
+                  <p className="text-caption text-fg-subtle mt-[2px]">
+                    {managerCount} project {managerCount === 1 ? "manager" : "managers"}
+                  </p>
+                )}
               </div>
             }
           >
@@ -848,6 +1018,18 @@ const ProjectDetails = () => {
         bug={editingBug}
         defaultStatus={bugDefaultStatus}
       />
+
+      <TaskFormModal
+        isOpen={taskFormOpen}
+        onClose={() => {
+          setTaskFormOpen(false);
+          setEditingTask(null);
+        }}
+        projectId={project.id}
+        members={memberUsers}
+        task={editingTask}
+        defaultStatus={taskDefaultStatus}
+      />
       <ConfirmDeleteModal
         isOpen={!!noteToDelete}
         onClose={() => setNoteToDelete(null)}
@@ -860,6 +1042,37 @@ const ProjectDetails = () => {
             : ""
         }
         confirmLabel="Delete note"
+      />
+
+      {/* Read-only view modals — opened on card click. Clicking Edit
+          inside hands off to the corresponding form modal above. */}
+      <BugViewModal
+        isOpen={!!viewingBug}
+        onClose={() => setViewingBug(null)}
+        bug={viewingBug}
+        members={memberUsers}
+        projectId={project.id}
+        canEdit={isAdmin}
+        onEdit={handleEditFromBugView}
+      />
+
+      <MeetingNoteViewModal
+        isOpen={!!viewingNote}
+        onClose={() => setViewingNote(null)}
+        note={viewingNote}
+        members={memberUsers}
+        authorUser={
+          viewingNote ? employeeMap.get(viewingNote.createdById) || null : null
+        }
+        projectId={project.id}
+        canEdit={
+          canManage || (viewingNote && viewingNote.createdById === userUid)
+        }
+        canDelete={
+          canManage || (viewingNote && viewingNote.createdById === userUid)
+        }
+        onEdit={handleEditFromNoteView}
+        onDelete={handleDeleteFromNoteView}
       />
     </div>
   );

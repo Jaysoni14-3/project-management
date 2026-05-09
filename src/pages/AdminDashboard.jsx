@@ -18,14 +18,19 @@ import EmptyState from "../components/ui/EmptyState";
 import StatsRow from "../components/Dashboard/StatsRow";
 
 import useDashboardStats from "../hooks/useDashboardStats";
+import { projectPath } from "../lib/slug";
 import { useProjects } from "../hooks/useProjects";
 import useEmployees from "../hooks/useEmployee";
 import useRecentMeetingNotes from "../hooks/useRecentMeetingNotes";
 import useRecentBugs from "../hooks/useRecentBugs";
 import useBugCounts from "../hooks/useBugCounts";
+import useMeetingNotesCount from "../hooks/useMeetingNotesCount";
+import useTaskCounts from "../hooks/useTaskCounts";
 import { useAuth } from "../context/AuthContext";
 
 import RecentBugsPanel from "../features/bugs/components/RecentBugsPanel";
+import BugTrendChart from "../components/Dashboard/BugTrendChart";
+import WorkloadChart from "../components/Dashboard/WorkloadChart";
 
 /* ============================================================
    Helpers
@@ -101,12 +106,7 @@ const PipelinePanel = ({ projects, loading }) => {
       padded={false}
       header={
         <>
-          <div>
-            <h2 className="text-section text-fg">Project pipeline</h2>
-            <p className="text-caption text-fg-subtle mt-[2px]">
-              Where your active work is in flight
-            </p>
-          </div>
+          <h2 className="text-section text-fg">Project pipeline</h2>
           <span className="text-caption text-fg-subtle">
             {total} project{total === 1 ? "" : "s"}
           </span>
@@ -180,12 +180,7 @@ const TeamPanel = ({ employees, loading }) => {
       padded={false}
       header={
         <>
-          <div>
-            <h2 className="text-section text-fg">Team</h2>
-            <p className="text-caption text-fg-subtle mt-[2px]">
-              People in your workspace
-            </p>
-          </div>
+          <h2 className="text-section text-fg">Team</h2>
           <Link
             to="/employees"
             className="inline-flex items-center gap-xs text-bodySm text-accent hover:text-accent-hover transition-colors duration-fast"
@@ -306,14 +301,7 @@ const StatusMixPanel = ({ projects, loading }) => {
   return (
     <Card
       padded={false}
-      header={
-        <div>
-          <h2 className="text-section text-fg">Status mix</h2>
-          <p className="text-caption text-fg-subtle mt-[2px]">
-            Health of the portfolio at a glance
-          </p>
-        </div>
-      }
+      header={<h2 className="text-section text-fg">Status mix</h2>}
     >
       <div className="px-lg py-md flex flex-col gap-md">
         {loading ? (
@@ -379,12 +367,7 @@ const RecentProjectsPanel = ({ projects, loading }) => {
       padded={false}
       header={
         <>
-          <div>
-            <h2 className="text-section text-fg">Recent projects</h2>
-            <p className="text-caption text-fg-subtle mt-[2px]">
-              Latest activity across the workspace
-            </p>
-          </div>
+          <h2 className="text-section text-fg">Recent projects</h2>
           <Link
             to="/projects"
             className="inline-flex items-center gap-xs text-bodySm text-accent hover:text-accent-hover transition-colors duration-fast"
@@ -413,7 +396,6 @@ const RecentProjectsPanel = ({ projects, loading }) => {
           <EmptyState
             icon={FolderKanban}
             title="No projects yet"
-            description="Create your first project to start tracking work."
             action={
               <Link
                 to="/projects"
@@ -494,12 +476,7 @@ const RecentMeetingNotesPanel = ({ notes, loading, error, projects, employees })
       padded={false}
       header={
         <>
-          <div>
-            <h2 className="text-section text-fg">Recent meeting notes</h2>
-            <p className="text-caption text-fg-subtle mt-[2px]">
-              Latest activity across all projects
-            </p>
-          </div>
+          <h2 className="text-section text-fg">Recent meeting notes</h2>
           <span className="text-caption text-fg-subtle">
             {loading ? "" : `${notes.length} ${notes.length === 1 ? "note" : "notes"}`}
           </span>
@@ -550,7 +527,6 @@ const RecentMeetingNotesPanel = ({ notes, loading, error, projects, employees })
           <EmptyState
             icon={StickyNote}
             title="No meeting notes yet"
-            description="Once your team starts capturing meetings, the latest entries will appear here."
           />
         </div>
       ) : (
@@ -559,18 +535,14 @@ const RecentMeetingNotesPanel = ({ notes, loading, error, projects, employees })
             const project = note.projectId
               ? projectMap.get(note.projectId)
               : null;
-            const author = employeeMap.get(note.createdBy);
+            const author = employeeMap.get(note.createdById);
             const attCount = note.attachments?.length ?? 0;
             const attendeeCount = note.attendeeIds?.length ?? 0;
 
             return (
               <li key={note.id}>
                 <Link
-                  to={
-                    note.projectId
-                      ? `/projects/${note.projectId}`
-                      : "#"
-                  }
+                  to={project ? projectPath(project) : "#"}
                   className="group flex items-start gap-md px-lg py-md hover:bg-subtle/60 transition-colors duration-fast"
                 >
                   <div className="h-8 w-8 rounded-md bg-accent-soft text-accent flex items-center justify-center shrink-0">
@@ -657,14 +629,7 @@ const QuickActionsPanel = () => {
   return (
     <Card
       padded={false}
-      header={
-        <div>
-          <h2 className="text-section text-fg">Quick actions</h2>
-          <p className="text-caption text-fg-subtle mt-[2px]">
-            Common things to get done
-          </p>
-        </div>
-      }
+      header={<h2 className="text-section text-fg">Quick actions</h2>}
     >
       <ul className="divide-y divide-line-subtle">
         {actions.map(({ to, icon: Icon, title, desc, tone }) => (
@@ -702,13 +667,14 @@ const AdminDashboard = () => {
   const { notes: recentNotes, loading: notesLoading, error: notesError } = useRecentMeetingNotes(6);
   const { bugs: recentBugs, loading: bugsLoading, error: bugsError } = useRecentBugs(6);
   const { totalOpen: openBugCount, loading: bugCountsLoading } = useBugCounts();
+  const { total: meetingNotesTotal, loading: meetingNotesCountLoading } = useMeetingNotesCount();
+  const { totalOpen: openTaskCount, loading: taskCountsLoading } = useTaskCounts();
 
   return (
     <div className="flex flex-col gap-xl">
       <PageHeader
         eyebrow={formatDate()}
         title={`Welcome back, ${greetingName(user?.email)}`}
-        description="Here's a snapshot of what's happening across your workspace today."
         actions={
           <Link
             to="/projects"
@@ -725,6 +691,10 @@ const AdminDashboard = () => {
       <StatsRow
         {...stats}
         bugs={openBugCount}
+        meetingNotes={meetingNotesTotal}
+        meetingNotesLoading={meetingNotesCountLoading}
+        tasks={openTaskCount}
+        tasksLoading={taskCountsLoading}
         statsLoading={stats.statsLoading || bugCountsLoading}
       />
 
@@ -745,6 +715,16 @@ const AdminDashboard = () => {
         </div>
         <div className="lg:col-span-5">
           <QuickActionsPanel />
+        </div>
+      </div>
+
+      {/* Row: bug trend + workload — the two operational charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
+        <div className="lg:col-span-7">
+          <BugTrendChart days={30} />
+        </div>
+        <div className="lg:col-span-5">
+          <WorkloadChart limit={8} />
         </div>
       </div>
 

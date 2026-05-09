@@ -365,11 +365,6 @@ const BugFormModal = ({
       onClose={submitting ? undefined : onClose}
       closeOnBackdrop={!submitting}
       title={isEdit ? "Edit bug" : "New bug"}
-      description={
-        isEdit
-          ? "Update the report so the right person can pick it up."
-          : "Report what's broken so it can be triaged and fixed."
-      }
       size="lg"
       footer={
         <>

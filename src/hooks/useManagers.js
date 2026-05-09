@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
-import { collection, getDocs, query, where } from "firebase/firestore"
-import { db } from "../services/firebase"
+import { getManagers } from "../services/dashboard.service"
 
 const useManagers = () => {
   const [managers, setManagers] = useState([])
@@ -8,30 +7,21 @@ const useManagers = () => {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const fetchManagers = async () => {
+    let cancelled = false
+    ;(async () => {
       try {
-        const q = query(
-          collection(db, "users"),
-          where("isManager", "==", true)
-        )
-
-        const snapshot = await getDocs(q)
-
-        const list = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
-
-        setManagers(list)
+        const list = await getManagers()
+        if (!cancelled) setManagers(list)
       } catch (err) {
         console.error("Error fetching managers:", err)
-        setError(err)
+        if (!cancelled) setError(err)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
+    })()
+    return () => {
+      cancelled = true
     }
-
-    fetchManagers()
   }, [])
 
   return { managers, loading, error }

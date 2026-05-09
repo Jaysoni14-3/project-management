@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { Mail, AlertCircle } from "lucide-react";
 
 import AuthCard from "../components/ui/AuthCard";
@@ -8,7 +7,7 @@ import Input from "../components/ui/Input";
 import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 
-import { auth } from "../services/firebase";
+import { login as loginFn } from "../services/auth.service";
 import { useAuth } from "../context/AuthContext";
 
 const friendlyAuthError = (code) => {
@@ -58,10 +57,10 @@ const Login = () => {
 
     setSubmitting(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await loginFn(email, password);
       // Auth state listener will redirect via the effect above.
     } catch (err) {
-      setFormError(friendlyAuthError(err?.code));
+      setFormError(friendlyAuthError(err?.code) || err?.message || "Sign-in failed");
       setSubmitting(false);
     }
   };

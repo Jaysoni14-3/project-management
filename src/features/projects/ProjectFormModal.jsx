@@ -9,55 +9,7 @@ import useEmployees from "../../hooks/useEmployee";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
-
-const reactSelectStyles = {
-  control: (base, state) => ({
-    ...base,
-    minHeight: "36px",
-    borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(228 228 231)",
-    boxShadow: state.isFocused
-      ? "0 0 0 3px rgba(59, 130, 246, 0.25)"
-      : "none",
-    borderRadius: "8px",
-    fontSize: "14px",
-    "&:hover": {
-      borderColor: state.isFocused ? "rgb(6 29 111)" : "rgb(212 212 216)",
-    },
-  }),
-  option: (base, state) => ({
-    ...base,
-    fontSize: "14px",
-    backgroundColor: state.isSelected
-      ? "rgb(239 246 255)"
-      : state.isFocused
-      ? "rgb(244 244 245)"
-      : "white",
-    color: "rgb(24 24 27)",
-    cursor: "pointer",
-  }),
-  multiValue: (base) => ({
-    ...base,
-    backgroundColor: "rgb(239 246 255)",
-    borderRadius: "4px",
-  }),
-  multiValueLabel: (base) => ({
-    ...base,
-    color: "rgb(6 29 111)",
-    fontSize: "12px",
-    fontWeight: 500,
-  }),
-  multiValueRemove: (base) => ({
-    ...base,
-    color: "rgb(6 29 111)",
-    ":hover": { backgroundColor: "rgb(219 234 254)", color: "rgb(6 29 111)" },
-  }),
-  placeholder: (base) => ({
-    ...base,
-    fontSize: "14px",
-    color: "rgb(113 113 122)",
-  }),
-  indicatorSeparator: () => ({ display: "none" }),
-};
+import selectStyles from "../../components/ui/selectStyles";
 
 const empToOption = (emp, currentUid) => ({
   value: emp.id,
@@ -307,7 +259,7 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
               onChange={(opts) => setSelectedEmployees(opts || [])}
               isLoading={employeesLoading}
               placeholder="Assign team members…"
-              styles={reactSelectStyles}
+              styles={selectStyles}
               classNamePrefix="react-select"
             />
           </div>
@@ -325,7 +277,7 @@ const ProjectFormModal = ({ isOpen, onClose, project }) => {
               onChange={(opts) => setSelectedManagers(opts || [])}
               isLoading={employeesLoading}
               placeholder="Promote a member to manager…"
-              styles={reactSelectStyles}
+              styles={selectStyles}
               classNamePrefix="react-select"
               noOptionsMessage={() =>
                 selectedEmployees.length === 0

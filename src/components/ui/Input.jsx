@@ -22,7 +22,7 @@ const Input = React.forwardRef(
     const describedBy = error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined;
 
     return (
-      <div className={`flex flex-col w-full ${wrapperClassName}`}>
+      <div className={`flex flex-col w-full mb-lg ${wrapperClassName}`}>
         {label && (
           <label
             htmlFor={inputId}

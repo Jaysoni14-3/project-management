@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { listenToProject } from "../services/project.service";
 
-/**
- * Realtime listener for a single project doc by id.
- * Returns { project, loading, error }.
- * - project === null + !loading + !error → not found
- * - project === null + loading             → fetching
- */
 export const useProject = (projectId) => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,25 +14,13 @@ export const useProject = (projectId) => {
     }
 
     setLoading(true);
-    const unsubscribe = onSnapshot(
-      doc(db, "projects", projectId),
-      (snap) => {
-        if (snap.exists()) {
-          setProject({ id: snap.id, ...snap.data() });
-        } else {
-          setProject(null);
-        }
-        setError(null);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("useProject:", err);
-        setError(err);
-        setLoading(false);
-      }
-    );
+    const unsubscribe = listenToProject(projectId, (next) => {
+      setProject(next);
+      setError(null);
+      setLoading(false);
+    });
 
-    return () => unsubscribe();
+    return () => unsubscribe?.();
   }, [projectId]);
 
   return { project, loading, error };

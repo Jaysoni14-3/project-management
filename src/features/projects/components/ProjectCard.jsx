@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
-import { Users, FileText, Bug } from "lucide-react";
+import { Users, StickyNote, Bug, ListChecks } from "lucide-react";
 
 import EditButton from "../../../components/ui/EditButton";
 import DeleteButton from "../../../components/ui/DeleteButton";
 import ConfirmDeleteModal from "../../../components/ui/ConfirmDeleteModal";
+import { useAuth } from "../../../context/AuthContext";
 
 import ProjectPhaseBar from "./ProjectPhaseBar";
 import ProjectFormModal from "../ProjectFormModal";
@@ -26,8 +27,14 @@ const Meta = ({ icon: Icon, label, value }) => (
   </div>
 );
 
-const ProjectCard = ({ projects, bugCountsByProjectId = {} }) => {
+const ProjectCard = ({
+  projects,
+  bugCountsByProjectId = {},
+  noteCountsByProjectId = {},
+  taskCountsByProjectId = {},
+}) => {
   const { managers } = useManagers();
+  const { canManage } = useAuth();
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectToDelete, setProjectToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -69,6 +76,8 @@ const ProjectCard = ({ projects, bugCountsByProjectId = {} }) => {
           : "Unassigned";
         const memberCount = project.memberIds?.length ?? 0;
         const openBugCount = bugCountsByProjectId[project.id] ?? 0;
+        const noteCount = noteCountsByProjectId[project.id] ?? 0;
+        const openTaskCount = taskCountsByProjectId[project.id] ?? 0;
 
         return (
           <article
@@ -77,22 +86,24 @@ const ProjectCard = ({ projects, bugCountsByProjectId = {} }) => {
               transition-[border-color,box-shadow,transform] duration-fast
               hover:border-line-strong hover:shadow-md flex flex-col gap-md"
           >
-            {/* Hover actions */}
-            <div className="absolute top-md right-md flex items-center gap-xs
-              opacity-0 group-hover:opacity-100 transition-opacity duration-fast">
-              <EditButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedProject(project);
-                }}
-              />
-              <DeleteButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setProjectToDelete(project);
-                }}
-              />
-            </div>
+            {/* Hover actions — admin/manager only. Employees see nothing. */}
+            {canManage && (
+              <div className="absolute top-md right-md flex items-center gap-xs
+                opacity-0 group-hover:opacity-100 transition-opacity duration-fast">
+                <EditButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedProject(project);
+                  }}
+                />
+                <DeleteButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setProjectToDelete(project);
+                  }}
+                />
+              </div>
+            )}
 
             {/* Header */}
             <header className="flex items-start justify-between gap-md pr-xl">
@@ -131,14 +142,9 @@ const ProjectCard = ({ projects, bugCountsByProjectId = {} }) => {
                 }
               />
               <div className="flex items-center gap-lg flex-wrap">
-                {project.meetingNotes && (
-                  <Meta
-                    icon={FileText}
-                    label="Notes"
-                    value={project.meetingNotes}
-                  />
-                )}
+                <Meta icon={ListChecks} label="Open tasks" value={openTaskCount} />
                 <Meta icon={Bug} label="Open bugs" value={openBugCount} />
+                <Meta icon={StickyNote} label="Notes" value={noteCount} />
               </div>
             </div>
 

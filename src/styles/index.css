@@ -11,11 +11,12 @@
 :root {
     color-scheme: light;
 
-    /* Surfaces */
-    --color-canvas:   250 250 250;  /* page background */
+    /* Surfaces — canvas carries a faint brand-tinted wash so the workspace
+       reads warmer than pure neutral. Cards stay white so they pop against it. */
+    --color-canvas:   247 250 255;  /* page background — hint of accent blue */
     --color-surface:  255 255 255;  /* cards, panels */
     --color-elevated: 255 255 255;  /* dropdowns, popovers */
-    --color-subtle:   244 244 245;  /* table headers, hover, soft fills */
+    --color-subtle:   240 244 250;  /* table headers, hover, soft fills */
     --color-overlay:    9   9  11;  /* modal backdrop (used at low alpha) */
 
     /* Foregrounds */
@@ -38,10 +39,50 @@
 }
 
 /* ====================================================================
+   DARK THEME
+   Toggled by adding `dark` class on <html>. Inverts surface tones,
+   lifts text contrast, and shifts the accent so it still pops against
+   a dark canvas. The brand navy stays in `accent-fg`/sidebar gradient.
+==================================================================== */
+:root.dark {
+    color-scheme: dark;
+
+    /* Surfaces — deep, slightly blue-tinted neutrals so the workspace
+       feels like Linear/Vercel's dark mode rather than pure black. */
+    --color-canvas:    9  11  17;   /* page background */
+    --color-surface:  17  20  28;   /* cards, panels */
+    --color-elevated: 24  28  38;   /* dropdowns, popovers, modals */
+    --color-subtle:   28  32  44;   /* table headers, hover fills */
+    --color-overlay:   0   0   0;   /* modal backdrop (still used at low alpha) */
+
+    /* Foregrounds — anchored to a near-white primary, descending in
+       chroma rather than fading to gray to avoid muddy meta text. */
+    --color-fg:          230 232 240;
+    --color-fg-muted:    170 175 188;
+    --color-fg-subtle:   132 138 152;
+    --color-fg-disabled:  88  92 104;
+    --color-fg-inverse:   17  20  28;
+
+    /* Borders — kept very close to surface so hairlines read as a hint
+       of separation rather than a bright line. Linear/Vercel calibration. */
+    --color-border:        26  30  42;
+    --color-border-strong: 44  50  64;
+    --color-border-subtle: 20  24  34;
+
+    /* Brand — shift accent toward the lighter side of the navy ramp so
+       buttons/links read clearly on dark canvas. accent-soft becomes a
+       deep tinted fill rather than the near-white version used in light. */
+    --color-accent:       96 165 250;   /* accent-400 — pops on dark */
+    --color-accent-hover:147 197 253;   /* accent-300 */
+    --color-accent-soft:  30  58 138;   /* accent-900 — tinted fill */
+    --color-accent-fg:    17  20  28;
+}
+
+/* ====================================================================
    GLOBAL BASE
 ==================================================================== */
 html {
-    font-family: "Switzer", Inter, system-ui, sans-serif;
+    font-family: "Manrope", system-ui, sans-serif;
     font-size: 14px;
     line-height: 1.5;
     color: rgb(var(--color-fg));
@@ -50,12 +91,30 @@ html {
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     letter-spacing: -0.005em;
-    font-feature-settings: "ss01", "cv11";
 }
 
 body {
     font-family: inherit;
     min-height: 100vh;
+}
+
+/* Dark mode atmosphere — two faint radial glows layered over the canvas
+   so the workspace doesn't read as a flat slab. Fixed attachment so the
+   gradient doesn't scroll with content. Mirrors the Linear/Vercel feel. */
+:root.dark body {
+    background-color: rgb(var(--color-canvas));
+    background-image:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(96, 165, 250, 0.10), transparent 55%),
+        radial-gradient(ellipse 60% 50% at 100% 100%, rgba(139, 92, 246, 0.07), transparent 55%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+/* Display headings use Fraunces (serif) — paired automatically with the
+   `text-display` size token so the design system enforces it. */
+.text-display {
+    font-family: "Fraunces", Georgia, serif;
+    font-optical-sizing: auto;
 }
 
 /* All form controls inherit type — no Safari/Firefox shrink */

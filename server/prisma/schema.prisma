@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  manager
+  employee
+  hr
+}
+
+enum ProjectMemberRole {
+  manager
+  member
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  in_review
+  done
+}
+
+enum BugStatus {
+  backlog
+  in_progress
+  in_review
+  done
+  resolved
+  closed
+}
+
+enum Priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum Severity {
+  low
+  medium
+  high
+  critical
+}
+
+enum ParentType {
+  task
+  bug
+  meeting_note
+}
+
+enum NotificationKind {
+  project_assigned
+  bug_assigned
+  meeting_note_attendee
+  comment_mention
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(employee)
+  avatar       String?
+  whatsapp     String?
+  phoneNumber  String?
+  joinedDate   String?
+  designation  String?
+  isManager    Boolean  @default(false)
+  managerId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  manager   User?  @relation("UserToManager", fields: [managerId], references: [id])
+  reports   User[] @relation("UserToManager")
+
+  createdProjects    Project[]         @relation("ProjectCreatedBy")
+  projectMemberships ProjectMember[]
+  assignedTasks      Task[]            @relation("TaskAssignee")
+  createdTasks       Task[]            @relation("TaskCreatedBy")
+  reportedBugs       Bug[]             @relation("BugReporter")
+  assignedBugs       Bug[]             @relation("BugAssignee")
+  meetingNotes       MeetingNote[]     @relation("NoteCreatedBy")
+  meetingAttendances MeetingAttendee[]
+  comments           Comment[]
+  notifications      Notification[]
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  recipient   User             @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  kind        NotificationKind
+  title       String
+  body        String?
+  payload     Json
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([recipientId, readAt])
+  @@index([recipientId, createdAt])
+}
+
+model Project {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  clientName   String?
+  status       String   @default("active")
+  currentPhase String?
+  createdById  String
+  createdBy    User     @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members      ProjectMember[]
+  tasks        Task[]
+  bugs         Bug[]
+  meetingNotes MeetingNote[]
+}
+
+model ProjectMember {
+  projectId String
+  userId    String
+  role      ProjectMemberRole @default(member)
+  joinedAt  DateTime          @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  status      TaskStatus @default(todo)
+  priority    Priority   @default(medium)
+  assigneeId  String?
+  dueDate     DateTime?
+  createdById String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy      User?               @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  checklistItems TaskChecklistItem[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+}
+
+model TaskChecklistItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  text      String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId, order])
+}
+
+model Bug {
+  id               String    @id @default(cuid())
+  projectId        String
+  title            String
+  description      String?
+  stepsToReproduce String?
+  severity         Severity  @default(medium)
+  priority         Priority  @default(medium)
+  status           BugStatus @default(backlog)
+  assigneeId       String?
+  reporterId       String?
+  dueDate          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?        @relation("BugAssignee", fields: [assigneeId], references: [id])
+  reporter    User?        @relation("BugReporter", fields: [reporterId], references: [id])
+  attachments Attachment[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+}
+
+model MeetingNote {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  content     String?
+  meetingDate DateTime
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User?             @relation("NoteCreatedBy", fields: [createdById], references: [id])
+  attendees   MeetingAttendee[]
+  attachments Attachment[]
+
+  @@index([projectId])
+  @@index([meetingDate])
+}
+
+model MeetingAttendee {
+  noteId String
+  userId String
+
+  note MeetingNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, userId])
+}
+
+model Attachment {
+  id         String     @id @default(cuid())
+  parentType ParentType
+  bugId      String?
+  noteId     String?
+  filename   String
+  size       Int
+  mimeType   String
+  storageKey String
+  uploadedAt DateTime   @default(now())
+
+  bug  Bug?         @relation(fields: [bugId], references: [id], onDelete: Cascade)
+  note MeetingNote? @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([bugId])
+  @@index([noteId])
+}
+
+model Comment {
+  id         String     @id @default(cuid())
+  parentType ParentType
+  parentId   String
+  authorId   String
+  body       String
+  edited     Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([parentType, parentId])
+  @@index([authorId])
+}

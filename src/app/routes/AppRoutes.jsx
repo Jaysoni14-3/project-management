@@ -11,7 +11,10 @@ import Register from "../../pages/Register";
 import ProfileSettings from "../../pages/ProfileSettings";
 import Projects from "../../pages/Projects";
 import ProjectDetails from "../../pages/ProjectDetails";
+import ProjectBugsBoard from "../../pages/ProjectBugsBoard";
 import Employees from "../../pages/Employees";
+import EmployeeDetails from "../../pages/EmployeeDetails";
+import Bugs from "../../pages/Bugs";
 
 export default function AppRoutes() {
   return (
@@ -35,8 +38,11 @@ export default function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="/settings" element={<ProfileSettings />} />
         <Route path="/projects" element={<Projects />} />
-        <Route path="/projects/:projectId" element={<ProjectDetails />} />
+        <Route path="/projects/:projectSlug" element={<ProjectDetails />} />
+        <Route path="/projects/:projectSlug/bugs" element={<ProjectBugsBoard />} />
+        <Route path="/bugs" element={<Bugs />} />
         <Route path="/employees" element={<Employees />} />
+        <Route path="/employees/:employeeSlug" element={<EmployeeDetails />} />
       </Route>
 
     </Routes>

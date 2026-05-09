@@ -47,14 +47,16 @@ const Modal = ({
         className="absolute inset-0 bg-overlay/50 backdrop-blur-[2px] animate-fade-in"
       />
 
-      {/* Sheet */}
+      {/* Sheet — flex column with capped height so the body scrolls
+          internally when content overflows. Header and footer stay pinned. */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full ${sizeMap[size]} bg-elevated rounded-xl shadow-modal
-          border border-line animate-scale-in`}
+        className={`relative w-full ${sizeMap[size]} max-h-[min(90vh,800px)]
+          flex flex-col bg-elevated rounded-xl shadow-modal
+          border border-line animate-scale-in overflow-hidden`}
       >
         {(title || onClose) && (
-          <div className="flex items-start justify-between gap-lg px-xl pt-lg pb-md border-b border-line-subtle">
+          <div className="shrink-0 flex items-start justify-between gap-lg px-xl pt-lg pb-md border-b border-line-subtle">
             <div className="flex flex-col gap-xs min-w-0">
               {title && (
                 <h2 className="text-section text-fg truncate">{title}</h2>
@@ -74,10 +76,12 @@ const Modal = ({
           </div>
         )}
 
-        <div className="px-xl py-lg">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-xl py-lg">
+          {children}
+        </div>
 
         {footer && (
-          <div className="flex justify-end gap-sm px-xl py-md border-t border-line-subtle bg-canvas/50 rounded-b-xl">
+          <div className="shrink-0 flex justify-end gap-sm px-xl py-md border-t border-line-subtle bg-canvas/50">
             {footer}
           </div>
         )}

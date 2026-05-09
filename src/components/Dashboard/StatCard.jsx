@@ -2,27 +2,46 @@ import React, { useEffect, useState } from "react";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import Skeleton from "../ui/Skeleton";
 
-/* Variant → icon-chip and trend-color mapping. Uses semantic status scales. */
+/* Variant → tinted card surface, icon chip, accent edge.
+   - Light mode: pale variant tint on the card body for a row of personality.
+   - Dark mode: clean dark surface (the pale tints turn to washed-out smudges
+     on dark, killing readability). Variant identity comes from the icon chip
+     and the 3px left edge in both modes. */
 const variantStyles = {
   default: {
+    cardBg: "bg-surface",
+    cardBorder: "border-line",
     chipBg: "bg-subtle",
     chipFg: "text-fg-muted",
+    edge: "before:bg-fg-subtle/30",
   },
   accent: {
-    chipBg: "bg-accent-soft",
+    cardBg: "bg-accent-soft/45 dark:bg-surface",
+    cardBorder: "border-accent-100 dark:border-line",
+    chipBg: "bg-accent-soft dark:bg-accent/15",
     chipFg: "text-accent",
+    edge: "before:bg-accent",
   },
   success: {
-    chipBg: "bg-success-50",
-    chipFg: "text-success-700",
+    cardBg: "bg-success-50/55 dark:bg-surface",
+    cardBorder: "border-success-100 dark:border-line",
+    chipBg: "bg-success-50 dark:bg-success-900/40",
+    chipFg: "text-success-700 dark:text-success-300",
+    edge: "before:bg-success-500",
   },
   warning: {
-    chipBg: "bg-warning-50",
-    chipFg: "text-warning-700",
+    cardBg: "bg-warning-50/55 dark:bg-surface",
+    cardBorder: "border-warning-100 dark:border-line",
+    chipBg: "bg-warning-50 dark:bg-warning-900/40",
+    chipFg: "text-warning-700 dark:text-warning-300",
+    edge: "before:bg-warning-500",
   },
   danger: {
-    chipBg: "bg-error-50",
-    chipFg: "text-error-700",
+    cardBg: "bg-error-50/55 dark:bg-surface",
+    cardBorder: "border-error-100 dark:border-line",
+    chipBg: "bg-error-50 dark:bg-error-900/40",
+    chipFg: "text-error-700 dark:text-error-300",
+    edge: "before:bg-error-500",
   },
 };
 
@@ -77,7 +96,7 @@ const StatCard = ({
 
   if (loading) {
     return (
-      <div className={`bg-surface border border-line rounded-lg p-lg ${className}`}>
+      <div className={`${styles.cardBg} border ${styles.cardBorder} rounded-lg p-lg ${className}`}>
         <div className="flex items-start justify-between mb-lg">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-8 w-8 rounded-md" />
@@ -104,9 +123,10 @@ const StatCard = ({
 
   return (
     <div
-      className={`group relative bg-surface border border-line rounded-lg p-lg
+      className={`group relative overflow-hidden ${styles.cardBg} border ${styles.cardBorder} rounded-lg p-lg
         transition-[border-color,box-shadow] duration-fast
         hover:border-line-strong hover:shadow-sm
+        before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px] ${styles.edge}
         ${className}`}
     >
       <div className="flex items-start justify-between mb-md">

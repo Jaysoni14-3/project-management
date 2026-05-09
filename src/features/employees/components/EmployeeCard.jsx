@@ -1,10 +1,11 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Mail, Phone, MessageCircle } from "lucide-react";
 
 import EditButton from "../../../components/ui/EditButton";
 import DeleteButton from "../../../components/ui/DeleteButton";
-import { auth } from "../../../services/firebase";
+import { useAuth } from "../../../context/AuthContext";
+import { employeePath } from "../../../lib/slug";
 
 const roleToken = {
   admin:    "bg-error-50 text-error-700 border-error-200",
@@ -57,38 +58,56 @@ const EmployeeCard = ({
   onDeleteUser,
   projectsLoading,
 }) => {
+  const navigate = useNavigate();
+  const { user: authUser, canManage } = useAuth();
+
   return (
     <>
       {employees.map((emp) => {
         const role = (emp.role || "employee").toLowerCase();
-        const isSelf = emp.id === auth.currentUser?.uid;
+        const isSelf = emp.id === authUser?.uid;
+        const goToProfile = () => navigate(employeePath(emp));
 
         return (
           <article
             key={emp.id}
+            role="button"
+            tabIndex={0}
+            onClick={goToProfile}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                goToProfile();
+              }
+            }}
             className="group relative bg-surface border border-line rounded-lg p-lg
+              cursor-pointer
               transition-[border-color,box-shadow] duration-fast
               hover:border-line-strong hover:shadow-md
+              focus-visible:outline-none focus-visible:shadow-focus-ring
               flex flex-col gap-md"
           >
-            {/* Hover actions */}
-            <div className="absolute top-md right-md flex items-center gap-xs
-              opacity-0 group-hover:opacity-100 transition-opacity duration-fast">
-              {!isSelf && (
+            {/* Hover actions — admin/manager can edit or delete others;
+                self can edit own card; self-delete is hidden everywhere. */}
+            {(canManage || isSelf) && (
+              <div className="absolute top-md right-md flex items-center gap-xs
+                opacity-0 group-hover:opacity-100 transition-opacity duration-fast">
                 <EditButton
                   onClick={(e) => {
                     e.stopPropagation();
                     onEditUser(emp);
                   }}
                 />
-              )}
-              <DeleteButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteUser(emp);
-                }}
-              />
-            </div>
+                {canManage && !isSelf && (
+                  <DeleteButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteUser(emp);
+                    }}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Header: avatar + name */}
             <header className="flex items-start gap-md pr-xl">

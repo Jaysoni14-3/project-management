@@ -118,11 +118,12 @@ export default {
 
       /* ================================================================
          TYPOGRAPHY
-         Tighter, denser scale — 13px base. Inspired by Linear/Raycast
-         where bold + size hierarchy beats sheer scale.
+         14px base. Manrope for interface/body, Fraunces (serif) for
+         display headings via the `font-display` family.
       ================================================================== */
       fontFamily: {
-        sans: ["Switzer", "Inter", "system-ui", "sans-serif"],
+        sans: ["Manrope", "system-ui", "sans-serif"],
+        display: ["Fraunces", "Georgia", "serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
 
@@ -208,6 +209,10 @@ export default {
         control:    "36px",
         controlSm:  "28px",
         controlLg:  "44px",
+      },
+      inset: {
+        sidebar:           "240px",
+        "sidebar-collapsed":"60px",
       },
       minWidth: {
         control:    "36px",
